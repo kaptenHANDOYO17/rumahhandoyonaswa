@@ -7,6 +7,15 @@ import { TYPES, BUY_CATS, MOODLETS, PI, fmtRp } from './data.js';
 import { INTER } from './interactions.js';
 
 export const PETS = { Oyen: 'cat', Kapi: 'capy' };
+export const PET_START = [
+  { name: 'Oyen', species: 'cat', sex: 'm', coat: 'tabby' }, { name: 'Snowy', species: 'cat', sex: 'f', coat: 'white' },
+  { name: 'Kapi', species: 'capy', sex: 'm', coat: 'capy' }, { name: 'Kiki', species: 'capy', sex: 'f', coat: 'capyLight' },
+];
+export const BABY_NAMES = { cat: ['Mochi', 'Kopi', 'Tofu', 'Belang', 'Cimol', 'Onyo', 'Pipi', 'Susu', 'Kuning', 'Bolu'], capy: ['Kapuk', 'Bubu', 'Kacang', 'Momo', 'Cipi', 'Tahu', 'Ubi', 'Gembul'] };
+export const ADULT_AGE = 4 * 1440;
+export const petAge = (hh, p) => (p.bornAt == null ? 1e9 : hh.world.time - p.bornAt);
+export const isBaby = (hh, p) => petAge(hh, p) < ADULT_AGE;
+export const petScale = (hh, p) => (p.bornAt == null ? 1 : 0.45 + 0.55 * Math.min(1, petAge(hh, p) / ADULT_AGE));
 export const PET_LABEL = { cat: 'Kucing', capy: 'Capybara' };
 export const PET_EMOJI = { cat: '🐈', capy: '🦫' };
 export const PET_DECAY = {
@@ -131,8 +140,16 @@ export const PAIR = {
   cuddle: { from: 'pet', to: 'pet', label: 'Tidur berdempetan', icon: '💤', dur: 40, anim: ['lie', 'lie'], gain: { energy: 0.35, social: 1.2 }, pgain: { energy: 0.35, social: 1.2 }, bond: 4, mood: 'sahabat', pmood: 'sahabat', close: 0.55 },
   sniff: { from: 'any', to: 'any', label: 'Endus-endus', icon: '👃', dur: 2, anim: ['idle', 'idle'], gain: { social: 2 }, pgain: { social: 1 }, bond: 1, close: 0.55, petOnly: true },
 };
+Object.assign(PAIR, {
+  mate: { from: 'pet', to: 'pet', label: 'Bermesraan 💕', icon: '💞', dur: 20, anim: ['rub', 'rub'], gain: { social: 3, fun: 1.5 }, pgain: { social: 3, fun: 1.5 }, bond: 6, mood: 'sahabat', pmood: 'sahabat', close: 0.5, mate: true,
+    need: (hh, a, b) => a.species === b.species && a.sex && b.sex && a.sex !== b.sex && !isBaby(hh, a) && !isBaby(hh, b) && !(a.sex === 'f' ? a : b).pregUntil && !hh.pets().some((k) => k.mom === (a.sex === 'f' ? a : b).name && isBaby(hh, k)) && hh.pets().length < 12 },
+  nurse: { from: 'pet', to: 'pet', label: 'Menyusu ke ibu', icon: '🍼', dur: 15, anim: ['eat', 'lie'], gain: { hunger: 4.5, social: 1.5 }, pgain: { social: 1 }, bond: 3, close: 0.45,
+    need: (hh, a, b) => isBaby(hh, a) && a.mom === b.name },
+  hugPet: { from: 'human', to: 'pet', label: 'Peluk erat-erat', icon: '🫂', dur: 6, anim: ['hug', 'rub'], gain: { social: 2, fun: 1.5 }, pgain: { social: 2.5 }, bond: 5, mood: 'peluk', pmood: 'dielus', close: 0.5 },
+});
 export function pairMatch(S, a, b) {
-  const m = (want, sp) => want === 'any' || want === sp || (want === 'pet' && sp !== 'human');
+  const PET = (sp) => sp === 'cat' || sp === 'capy';
+  const m = (want, sp) => want === 'any' ? (PET(sp) || sp === 'human') : want === sp || (want === 'pet' && PET(sp));
   if (S.petOnly && a === 'human' && b === 'human') return false;
   if (S.petOnly && a === 'human') return false;
   return m(S.from, a) && m(S.to, b);
@@ -146,7 +163,8 @@ function tex(draw, w = 256, h = 256) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 let TEXC = null;
-function petTextures() {
+function petTextures(coat) {
+  if (coat === 'white' || coat === 'capyLight' || coat === 'mix') return coatTex(coat);
   if (TEXC) return TEXC;
   const noise = (g, w, h, n, cols, len) => { for (let i = 0; i < n; i++) { g.strokeStyle = cols[i % cols.length]; g.globalAlpha = 0.25 + Math.random() * 0.35; g.lineWidth = 1; const x = Math.random() * w, y = Math.random() * h; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 3, y + len * (0.6 + Math.random())); g.stroke(); } g.globalAlpha = 1; };
   TEXC = {
@@ -170,12 +188,29 @@ function petTextures() {
   };
   return TEXC;
 }
+const COATC = {};
+function coatTex(coat) {
+  if (COATC[coat]) return COATC[coat];
+  const noise = (g, w, h, n, cols, len) => { for (let i = 0; i < n; i++) { g.strokeStyle = cols[i % cols.length]; g.globalAlpha = 0.3; g.beginPath(); const x = Math.random() * w, y = Math.random() * h; g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 3, y + len); g.stroke(); } g.globalAlpha = 1; };
+  let T;
+  if (coat === 'white') {
+    const body = tex((g, w, h) => { g.fillStyle = '#f4f2ee'; g.fillRect(0, 0, w, h); noise(g, w, h, 3000, ['#ffffff', '#dcd8d0', '#e9e5de'], 5); });
+    T = { tabby: body, catHead: tex((g, w, h) => { g.fillStyle = '#f6f4f0'; g.fillRect(0, 0, w, h); noise(g, w, h, 1500, ['#fff', '#dedad2'], 4); }) };
+  } else if (coat === 'mix') {
+    const body = tex((g, w, h) => { g.fillStyle = '#f2ede4'; g.fillRect(0, 0, w, h); for (let i = 0; i < 9; i++) { g.fillStyle = i % 2 ? '#e39a4c' : '#3a3232'; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 20 + Math.random() * 40, 16 + Math.random() * 30, Math.random() * 3, 0, Math.PI * 2); g.fill(); } noise(g, w, h, 2000, ['#fff', '#c9782e'], 5); });
+    T = { tabby: body, catHead: body };
+  } else {
+    const c = tex((g, w, h) => { g.fillStyle = '#a8744a'; g.fillRect(0, 0, w, h); noise(g, w, h, 6000, ['#8a5a36', '#c49468', '#76492a', '#d0a070'], 7); });
+    T = { capy: c, capyFace: tex((g, w, h) => { g.fillStyle = '#946442'; g.fillRect(0, 0, w, h); noise(g, w, h, 3000, ['#76492a', '#b08058'], 4); }) };
+  }
+  return (COATC[coat] = T);
+}
 const mat = (o) => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0, ...o });
 function mk(geo, m, x = 0, y = 0, z = 0, parent) { const k = new THREE.Mesh(geo, m); k.position.set(x, y, z); k.castShadow = true; k.receiveShadow = true; if (parent) parent.add(k); return k; }
 
 export class PetModel {
-  constructor(name, species) {
-    this.name = name; this.species = species; this.t = 0; this.cur = null;
+  constructor(name, species, coat) {
+    this.name = name; this.species = species; this.t = 0; this.cur = null; this.coat = coat || (species === 'cat' ? 'tabby' : 'capy');
     this.root = new THREE.Group(); this.root.userData.simName = name;
     this.body = new THREE.Group(); this.root.add(this.body);
     this.labelH = species === 'cat' ? 0.72 : 1.08;
@@ -195,7 +230,7 @@ export class PetModel {
     return { hip, knee };
   }
   buildCat() {
-    const T = petTextures();
+    const T = petTextures(this.coat);
     const fur = mat({ map: T.tabby }), white = mat({ color: '#fbeee0' }), pink = mat({ color: '#e89aa0', roughness: 0.6 });
     const B = this.body; this.hipY = 0.22;
     const torso = new THREE.Group(); torso.position.y = 0.23; B.add(torso); this.torso = torso;
@@ -215,7 +250,7 @@ export class PetModel {
     for (const s of [-1, 1]) {
       const ear = mk(new THREE.ConeGeometry(0.036, 0.075, 4), fur, s * 0.048, 0.072, -0.005, head); ear.rotation.set(-0.15, PI / 4, s * -0.28); ear.scale.z = 0.5;
       const inner = mk(new THREE.ConeGeometry(0.024, 0.05, 4), pink, s * 0.047, 0.068, 0.006, head); inner.rotation.copy(ear.rotation); inner.scale.z = 0.3;
-      const eye = mk(new THREE.SphereGeometry(0.018, 14, 10), mat({ color: '#b8d24a', roughness: 0.15, emissive: '#3a4a10', emissiveIntensity: 0.25 }), s * 0.034, 0.012, 0.064, head);
+      const eye = mk(new THREE.SphereGeometry(0.018, 14, 10), mat({ color: this.coat === 'white' ? '#6fb3e8' : '#b8d24a', roughness: 0.15, emissive: '#3a4a10', emissiveIntensity: 0.25 }), s * 0.034, 0.012, 0.064, head);
       const pup = mk(new THREE.SphereGeometry(0.0105, 10, 8), mat({ color: '#0a0a0a', roughness: 0.1 }), s * 0.034, 0.012, 0.079, head); pup.scale.set(0.35, 1.1, 0.5);
       mk(new THREE.SphereGeometry(0.004, 6, 4), mat({ color: '#fff', emissive: '#fff', emissiveIntensity: 0.6 }), s * 0.03, 0.02, 0.082, head);
       (this.eyes = this.eyes || []).push(eye, pup);
@@ -231,7 +266,7 @@ export class PetModel {
     this.propAnchor = head;
   }
   buildCapy() {
-    const T = petTextures();
+    const T = petTextures(this.coat);
     const fur = mat({ map: T.capy, roughness: 1 }), face = mat({ map: T.capyFace, roughness: 1 }), dark = mat({ color: '#2a1d14', roughness: 0.5 }), nail = mat({ color: '#2e2620' });
     const B = this.body; this.hipY = 0.3;
     const torso = new THREE.Group(); torso.position.y = 0.42; B.add(torso); this.torso = torso;
@@ -402,14 +437,30 @@ export function petAutonomy(hh, pet) {
   const self = (key) => () => { hh.queueAct(pet, key, null, { self: true }); return true; };
   const pair = (key, tgt) => () => { if (!tgt) return false; hh.queueSocial(pet, key, tgt.name, 'pair'); return true; };
   const human = humans[Math.floor(Math.random() * humans.length)];
-  const other = hh.sims[sp === 'cat' ? 'Kapi' : 'Oyen'];
+  const others = hh.pets().filter((o) => o !== pet && !o.hidden && !o.engagedBy);
+  const pickO = (f) => { const l = others.filter(f); return l[Math.floor(Math.random() * l.length)]; };
+  const other = pickO(() => true);
+  const capyAdult = pickO((o) => o.species === 'capy' && !isBaby(hh, o));
+  if (isBaby(hh, pet)) {
+    const mom = hh.sims[pet.mom];
+    if (mom && !mom.hidden && !mom.engagedBy && (mom.lvl || 0) === (pet.lvl || 0)) {
+      if (n.hunger < 60) { hh.queueSocial(pet, 'nurse', mom.name, 'pair'); return; }
+      if (Math.hypot(mom.x - pet.x, mom.z - pet.z) > 2.5) { hh.queueAct(pet, 'go', null, { pos: [mom.x + (Math.random() - 0.5), mom.z + (Math.random() - 0.5)], lvl: mom.lvl || 0 }); return; }
+      if (n.energy < 50) { hh.queueSocial(pet, 'cuddle', mom.name, 'pair'); return; }
+    }
+    const sib = pickO((o) => isBaby(hh, o));
+    if (sib && Math.random() < 0.5) { hh.queueSocial(pet, 'chase', sib.name, 'pair'); return; }
+  }
+  const mate = !isBaby(hh, pet) && pickO((o) => o.species === sp && o.sex && o.sex !== pet.sex && !isBaby(hh, o));
+  if (mate && PAIR.mate.need(hh, pet, mate) && Math.random() < 0.04) add(60, pair('mate', mate));
+  if (!humans.length) { /* semua sibuk */ }
   if (n.hunger < 55) { add((100 - n.hunger) * 1.4, act('eatBowl', 'petBowl')); add((100 - n.hunger) * 1.1, pair('beg', human)); if (sp === 'capy') add((100 - n.hunger) * 1.2, self('grazeLawn')); }
   const night = hr >= 22 || hr < 6;
   if (n.energy < 40 || night) add((100 - n.energy) * 1.3 + (night ? 25 : 0), sp === 'cat' ? act(Math.random() < 0.4 ? 'napBedCat' : Math.random() < 0.5 ? 'napSofaCat' : 'sleepPet', ['bed', 'sofa', 'petBed', 'armchair']) : act('sleepPet', 'capyBed'));
   if (n.bladder < 50) add((100 - n.bladder) * 2.3, sp === 'cat' ? act('useLitter', 'litterBox') : self('poop'));
   if (n.hygiene < 55) add((100 - n.hygiene) * 1.0, sp === 'cat' ? self('groom') : act('soak', 'pond'));
   if (n.fun < 65) {
-    if (sp === 'cat') { add((100 - n.fun) * 1.0, act('scratch', 'scratcher')); add((100 - n.fun) * 0.8, act('watchFish', 'aquarium')); add((100 - n.fun) * 0.7, self('zoomies')); add((100 - n.fun) * 0.25, self('knock')); add((100 - n.fun) * 0.8, pair('ride', other)); }
+    if (sp === 'cat') { add((100 - n.fun) * 1.0, act('scratch', 'scratcher')); add((100 - n.fun) * 0.8, act('watchFish', 'aquarium')); add((100 - n.fun) * 0.7, self('zoomies')); add((100 - n.fun) * 0.25, self('knock')); if (capyAdult) add((100 - n.fun) * 0.8, pair('ride', capyAdult)); }
     else { add((100 - n.fun) * 1.0, act('soak', 'pond')); add((100 - n.fun) * 0.9, self('chill')); add((100 - n.fun) * 0.5, self('zoomies')); add((100 - n.fun) * 0.4, act('graze', 'veggie')); }
     add((100 - n.fun) * 0.5, pair('chase', other));
   }

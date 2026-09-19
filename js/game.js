@@ -6,8 +6,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildWorld, buildObject, placeObject, updateObjectVisual, buildDirt } from './world.js';
 import { SimModel } from './sim.js';
 import { Household, footprint, SPEEDS, ULTRA, HUMANS } from './state.js';
-import { PetModel, buildPetObject, updatePetVisual, isPetType, PETS } from './pets.js';
-const mkObj = (o) => (isPetType(o.type) ? buildPetObject(o) : buildObject(o));
+import { PetModel, buildPetObject, updatePetVisual, isPetType, PETS, petScale } from './pets.js';
+import { buildFloor2, buildLibObject, isLibType, LVL_H } from './floor2.js';
+const mkObj = (o) => (isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : buildObject(o));
 import { TYPES, SIM_NAMES, GRID, LOT, HOUSE, PI } from './data.js';
 
 const SAVE_KEY = 'griyaasri-save-v1';
@@ -28,6 +29,8 @@ export class Game {
       openOutfit: (name) => { if (this.mySims.includes(name)) this.ui.openCAS(name); else this.send({ t: 'cas', sim: name }); },
       chat: (name, text) => { this.ui.chat(name, text); this.send({ t: 'chat', name, text }); },
       newDay: () => this.save(),
+      loanOffer: (o) => { this.ui.loanModal(o); this.send({ t: 'loan', o }); },
+      loanClose: () => { this.ui.closeLoan(); this.send({ t: 'loanClose' }); },
     });
     if (save) this.hh.loadSave(save);
   }
@@ -35,8 +38,8 @@ export class Game {
   send(m) { if (this.mode === 'host' && this.net && this.peerOnline) this.net.send(m); }
   toast(m, t, b) { this.ui.toast(m, t, b); this.send({ t: 'toast', m, ty: t, b }); }
   cmd(c) {
-    if (['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'say', 'give', 'buy', 'sell'].includes(c.c) && !c.sim) c.sim = this.active;
-    if (['buy', 'sell', 'give'].includes(c.c) && this.hh.sims[c.sim] && this.hh.sims[c.sim].isPet) c.sim = this.mySims.find((n) => HUMANS.includes(n));
+    if (['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'say', 'give', 'buy', 'sell', 'loan'].includes(c.c) && !c.sim) c.sim = this.active;
+    if (['buy', 'sell', 'give', 'loan'].includes(c.c) && this.hh.sims[c.sim] && this.hh.sims[c.sim].isPet) c.sim = this.mySims.find((n) => HUMANS.includes(n));
     if (this.isHost) this.hh.command(c); else this.net.send({ t: 'cmd', c });
     this.ui.sfx('click');
   }
@@ -60,9 +63,10 @@ export class Game {
     this.controls.target.set(-2, 0, 1.5);
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
+    buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
-    for (const n of Object.keys(this.hh.sims)) { const sp = this.hh.sims[n].species; const m = sp === 'human' ? new SimModel(n, this.hh.sims[n].outfit) : new PetModel(n, sp); this.scene.add(m.root); this.models[n] = m; m.root.position.set(this.hh.sims[n].x, 0, this.hh.sims[n].z); m.outfitKey = JSON.stringify(this.hh.sims[n].outfit); }
+    this.ensureModels();
     // plumbob
     const pb = new THREE.Mesh(new THREE.OctahedronGeometry(0.14, 0), new THREE.MeshStandardMaterial({ color: '#46d36b', emissive: '#2aa84a', emissiveIntensity: 0.6, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.92 }));
     pb.scale.set(0.75, 1.35, 0.75); pb.castShadow = false; this.scene.add(pb); this.plumbob = pb;
@@ -75,6 +79,23 @@ export class Game {
     window.addEventListener('resize', () => this.resize());
     this.lastGrass = -1; this.visT = 0; this.netT = 0; this.saveT = 0;
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+  actors() { return [...Object.values(this.hh.sims), ...Object.values(this.hh.others || {})]; }
+  ctrl(n) { const s = this.hh.sims[n]; return this.mySims.includes(n) || !!(s && s.isPet); }
+  controllable() { return [...this.mySims.filter((n) => this.hh.sims[n] && !this.hh.sims[n].isPet), ...this.hh.pets().map((p) => p.name)]; }
+  ensureModels() {
+    for (const s of this.actors()) {
+      if (this.models[s.name]) continue;
+      const m = s.isPet ? new PetModel(s.name, s.species, s.coat) : new SimModel(s.name, s.outfit);
+      this.scene.add(m.root); this.models[s.name] = m; m.root.position.set(s.x, s.y || 0, s.z); m.outfitKey = JSON.stringify(s.outfit);
+      if (!s.isPet) m.root.scale.setScalar(s.outfit.height || 1);
+    }
+  }
+  setView(l) {
+    if (this.viewLvl === l) return; const dy = (l - this.viewLvl) * LVL_H; this.viewLvl = l;
+    this.W.floor2.visible = l >= 1; this.controls.target.y += dy; this.camera.position.y += dy;
+    for (const o of this.hh.world.objects) { const g = this.objMeshes.get(o.id); if (g) g.visible = (o.lvl || 0) <= l; }
+    this.groundPlane.constant = -l * LVL_H; this.ui.refresh && this.ui.refresh();
   }
   resize() {
     const w = this.container.clientWidth, h = this.container.clientHeight;
@@ -100,7 +121,7 @@ export class Game {
       seen.add(o.id);
       let g = this.objMeshes.get(o.id);
       if (!g || g.userData.type !== o.type) { if (g) this.scene.remove(g); g = mkObj(o); this.scene.add(g); this.objMeshes.set(o.id, g); }
-      placeObject(g, o);
+      placeObject(g, o); g.position.y = (o.lvl || 0) * LVL_H; g.visible = (o.lvl || 0) <= (this.viewLvl || 0);
     }
     for (const [id, g] of this.objMeshes) if (!seen.has(id)) { this.scene.remove(g); this.objMeshes.delete(id); }
   }
@@ -109,7 +130,7 @@ export class Game {
     if (!force && this.dirtVer === W.dirtVer) return;
     this.dirtVer = W.dirtVer;
     const seen = new Set();
-    for (const d of W.dirt) { seen.add(d.id); if (!this.dirtMeshes.has(d.id)) { const g = buildDirt(d); this.scene.add(g); this.dirtMeshes.set(d.id, g); } }
+    for (const d of W.dirt) { seen.add(d.id); if (!this.dirtMeshes.has(d.id)) { const g = buildDirt(d); g.position.y += (d.lvl || 0) * LVL_H; g.userData.lvl = d.lvl || 0; this.scene.add(g); this.dirtMeshes.set(d.id, g); } }
     for (const [id, g] of this.dirtMeshes) if (!seen.has(id)) { this.scene.remove(g); this.dirtMeshes.delete(id); }
   }
   updateGrass() {
@@ -133,6 +154,10 @@ export class Game {
     this.syncObjects(); this.syncDirt(); this.updateGrass();
     const mul = W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed]);
     this.updateCamera(dt);
+    this.ensureModels();
+    const act = this.hh.sims[this.active]; if (act && (act.lvl || 0) !== this._lastActLvl) { this._lastActLvl = act.lvl || 0; this.followLvl = true; }
+    if (act && (act.lvl || 0) !== this.viewLvl && this.followLvl !== false && !act.hidden && !this.buy) this.setView(act.lvl || 0);
+    for (const g of this.dirtMeshes.values()) g.visible = g.userData.lvl <= this.viewLvl;
     this.updateSims(dt, mul);
     this.updateLighting(dt);
     this.updateWalls(dt);
@@ -156,6 +181,7 @@ export class Game {
     if (this.mode === 'host' && this.peerOnline) { this.netT += dt; if (this.netT > 0.12) { this.netT = 0; this.net.send({ t: 'snap', s: hh.snapshot() }); } }
     if (this.isHost) { this.saveT += dt; if (this.saveT > 120) { this.saveT = 0; this.save(); } }
     this.ui.frame(dt);
+    if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
     this.renderer.render(this.scene, this.camera);
   }
   pausedByUI() { return false; }
@@ -177,7 +203,7 @@ export class Game {
     // batasi area
     const tg = c.target; const cx = Math.max(-30, Math.min(30, tg.x)), cz = Math.max(-20, Math.min(26, tg.z));
     if (cx !== tg.x || cz !== tg.z) { this.camera.position.x += cx - tg.x; this.camera.position.z += cz - tg.z; tg.x = cx; tg.z = cz; }
-    tg.y = 0;
+    tg.y = (this.viewLvl || 0) * LVL_H;
     c.update();
     if (this.camera.position.y < 1.2) this.camera.position.y = 1.2;
   }
@@ -189,9 +215,10 @@ export class Game {
 
   updateSims(dt, mul) {
     const hh = this.hh;
-    for (const n of Object.keys(hh.sims)) {
-      const s = hh.sims[n], m = this.models[n]; if (!m) continue;
-      if (s.species === 'human') {
+    for (const s of this.actors()) {
+      const n = s.name, m = this.models[n]; if (!m) continue;
+      if (s.isPet) { const sc = petScale(hh, s); if (Math.abs(m.root.scale.x - sc) > 0.001) m.root.scale.setScalar(sc); m.labelH = (s.species === 'cat' ? 0.72 : 1.08) * sc; }
+      else {
         const key = JSON.stringify(s.outfit);
         if (key !== m.outfitKey) { m.outfitKey = key; m.setOutfit(s.outfit); m.root.scale.setScalar(s.outfit.height || 1); }
         if (m.root.scale.x !== (s.outfit.height || 1)) m.root.scale.setScalar(s.outfit.height || 1);
@@ -204,7 +231,7 @@ export class Game {
       let dy = s.yaw - R.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); R.rotation.y += dy * Math.min(1, dt * (s.moving ? 14 : 8));
       m.seatH = s.seatH;
       m.setProp(s.species === 'capy' && s.hat > hh.world.time ? 'orange' : s.prop);
-      R.visible = !s.hidden;
+      R.visible = !s.hidden && (s.lvl || 0) <= this.viewLvl;
       m.ring.visible = n === this.active && !s.hidden;
       const walking = s.anim === 'walk' || s.anim === 'jog' || s.anim === 'push' || s.anim === 'carry';
       const animDt = walking ? dt * (s.moving ? Math.min(Math.max(mul, 1), 6) : 0.0001) : dt * Math.min(Math.max(mul, 1), 2.5);
@@ -237,7 +264,7 @@ export class Game {
     W.hemi.color.set(dayF > 0.3 ? '#dff2ff' : '#6d7fb0');
     const night = this.isNight() || (rain && dayF < 0.6);
     const pw = w.house.power;
-    for (const L of W.interiorLights) { L.light.intensity = (night && pw) ? 3.2 : (rain && pw ? 1.2 : 0); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
+    for (const L of W.interiorLights) { if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; } L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0)); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
     for (const L of W.streetLamps) { if (L.isLight) L.intensity = night ? 18 : 0; else if (L.material) { L.material.emissive && L.material.emissive.set('#ffd27a'); L.material.emissiveIntensity = night ? 2 : 0; } }
     W.glassMat.emissiveIntensity = night && pw ? 0.55 : 0;
     W.rain.visible = rain;
@@ -294,8 +321,9 @@ export class Game {
     window.addEventListener('blur', () => { this.keys = {}; });
   }
   switchSim(name) {
-    if (!name) { const i = this.mySims.indexOf(this.active); name = this.mySims[(i + 1) % this.mySims.length]; }
-    if (!this.mySims.includes(name)) return;
+    const list = this.controllable();
+    if (!name) { const i = list.indexOf(this.active); name = list[(i + 1) % list.length]; }
+    if (!this.ctrl(name)) return;
     this.active = name; this.focusSim(name); this.ui.refresh();
   }
   pick(cx, cy) {
@@ -303,14 +331,14 @@ export class Game {
     const ndc = new THREE.Vector2(((cx - rect.left) / rect.width) * 2 - 1, -((cy - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const list = [];
-    for (const n of Object.keys(this.models)) if (this.models[n].root.visible) list.push(this.models[n].root);
-    for (const g of this.objMeshes.values()) list.push(g);
+    for (const s of this.actors()) { const m = this.models[s.name]; if (m && m.root.visible && (s.lvl || 0) === this.viewLvl) list.push(m.root); }
+    for (const g of this.objMeshes.values()) if (g.visible && (g.userData.lvl = (this.hh.obj(g.userData.objId) || {}).lvl || 0) === this.viewLvl) list.push(g);
     for (const g of this.dirtMeshes.values()) list.push(g);
     const hits = this.raycaster.intersectObjects(list, true);
     for (const h of hits) {
       let o = h.object;
       while (o) {
-        if (o.userData.simName && this.hh.sims[o.userData.simName]) return { sim: o.userData.simName, point: h.point };
+        if (o.userData.simName && this.hh.actorByName(o.userData.simName)) return { sim: o.userData.simName, point: h.point };
         if (o.userData.objId !== undefined && !o.userData.ghost) return { objId: o.userData.objId, point: h.point };
         if (o.userData.dirtId !== undefined) return { dirtId: o.userData.dirtId, point: h.point };
         o = o.parent;
@@ -334,7 +362,7 @@ export class Game {
     if (h.dirtId !== undefined) return this.ui.showMenu(this.hh.menuFor(me, { dirtId: h.dirtId }), cx, cy, 'Lantai kotor');
     if (h.ground) {
       const x = Math.max(GRID.minX + 0.5, Math.min(GRID.maxX - 0.5, h.point.x)), z = Math.max(GRID.minZ + 0.5, Math.min(GRID.maxZ - 0.5, h.point.z));
-      this.cmd({ c: 'go', x, z }); this.ui.ping(cx, cy);
+      this.cmd({ c: 'go', x, z, lvl: this.viewLvl }); this.ui.ping(cx, cy);
     }
   }
 
@@ -347,6 +375,7 @@ export class Game {
     this.cancelGhost();
     const src = moveId ? this.hh.obj(moveId) : null;
     const obj = { id: -1, type, x: src ? src.x : 0, z: src ? src.z : 0, rot: src ? src.rot : 0, s: this.hh.defaultState(type) };
+    if (moveId) this.setView(src.lvl || 0);
     const g = mkObj(obj);
     g.traverse((o) => { o.userData.ghost = true; if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.62; o.castShadow = false; } });
     g.userData.ghost = true;
@@ -376,8 +405,8 @@ export class Game {
     const x = snap(p.x, w), z = snap(p.z, d);
     if (x !== gh.x || z !== gh.z || gh.dirty) {
       gh.x = x; gh.z = z; gh.dirty = false;
-      gh.g.position.set(x, 0, z); gh.g.rotation.y = gh.rot * PI / 2;
-      const r = this.hh.canPlace(gh.type, x, z, gh.rot, gh.moveId); gh.ok = r === true; gh.why = r === true ? '' : r;
+      gh.g.position.set(x, this.viewLvl * LVL_H, z); gh.g.rotation.y = gh.rot * PI / 2;
+      const r = this.hh.canPlace(gh.type, x, z, gh.rot, gh.moveId, this.viewLvl); gh.ok = r === true; gh.why = r === true ? '' : r;
       if (!gh.moveId && this.hh.world.money < T.price) { gh.ok = false; gh.why = 'Uang tidak cukup'; }
       gh.g.userData.pad.material.color.set(gh.ok ? '#46d36b' : '#e5484d');
       this.ui.ghostStatus(gh);
@@ -388,8 +417,8 @@ export class Game {
     if (gh) {
       this.mouse = { x: cx, y: cy }; gh.dirty = true; this.updateGhost();
       if (!gh.ok) { this.ui.toast(gh.why || 'Tidak bisa ditaruh di sini', 'bad'); return; }
-      if (gh.moveId) this.cmd({ c: 'move', id: gh.moveId, x: gh.x, z: gh.z, rot: gh.rot });
-      else this.cmd({ c: 'buy', type: gh.type, x: gh.x, z: gh.z, rot: gh.rot });
+      if (gh.moveId) this.cmd({ c: 'move', id: gh.moveId, x: gh.x, z: gh.z, rot: gh.rot, lvl: this.viewLvl });
+      else this.cmd({ c: 'buy', type: gh.type, x: gh.x, z: gh.z, rot: gh.rot, lvl: this.viewLvl });
       const keep = !gh.moveId && this.ui.keepPlacing;
       const type = gh.type, rot = gh.rot;
       this.cancelGhost();
@@ -405,8 +434,8 @@ export class Game {
   // ------------------------------------------------------------
   onNet(m) {
     if (this.isHost) {
-      if (m.t === 'cmd') { if (m.c.sim && !this.peerSims().includes(m.c.sim) && !PETS[m.c.sim] && ['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'give'].includes(m.c.c)) return; this.hh.command(m.c); }
-      if (m.t === 'hello') { this.net.send({ t: 'welcome', mySims: [...this.peerSims(), ...Object.keys(PETS)], hostSims: this.mySims }); this.net.send({ t: 'snap', s: this.hh.snapshot() }); }
+      if (m.t === 'cmd') { if (m.c.sim && !this.peerSims().includes(m.c.sim) && !(this.hh.sims[m.c.sim] && this.hh.sims[m.c.sim].isPet) && ['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'give'].includes(m.c.c)) return; this.hh.command(m.c); }
+      if (m.t === 'hello') { this.net.send({ t: 'welcome', mySims: [...this.peerSims()], hostSims: this.mySims }); this.net.send({ t: 'snap', s: this.hh.snapshot() }); }
     } else {
       if (m.t === 'snap') { this.hh.applySnapshot(m.s); if (!this.gotSnap) { this.gotSnap = true; this.syncObjects(true); this.syncDirt(true); this.lastGrass = -1; } }
       if (m.t === 'toast') this.ui.toast(m.m, m.ty, m.b);
@@ -414,6 +443,8 @@ export class Game {
       if (m.t === 'sfx') this.ui.sfx(m.k);
       if (m.t === 'chat') this.ui.chat(m.name, m.text);
       if (m.t === 'cas' && this.mySims.includes(m.sim)) this.ui.openCAS(m.sim);
+      if (m.t === 'loan') this.ui.loanModal(m.o);
+      if (m.t === 'loanClose') this.ui.closeLoan();
     }
   }
   peerSims() { return HUMANS.filter((n) => !this.mySims.includes(n)); }

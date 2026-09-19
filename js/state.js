@@ -10,7 +10,14 @@ import {
 import { INTER, SOCIAL } from './interactions.js';
 import { NavGrid } from './path.js';
 import { PETS, PET_SELF, PAIR, pairMatch, PET_OBJECTS, petDefaultState, PET_DECAY, petAutonomy, PET_EMOJI } from './pets.js';
+import { LVL_H, STAIR, HOLE, LIB_OBJECTS } from './floor2.js';
+import { initPeople, peopleMinute, loanDecision, collectLoan, STAFF, NPCS } from './people.js';
+import { PET_START, BABY_NAMES, isBaby } from './pets.js';
+import { bookById } from './books.js';
 export const HUMANS = ['Handoyo', 'Naswa'];
+const by = (s) => (s.lvl || 0) * LVL_H;
+SOCIAL.longhug = { ...SOCIAL.hug, label: 'Pelukan hangat yang lama', icon: '🫂', dur: 15, rel: 6, mood: 'peluk', min: Math.min(SOCIAL.hug.min || 0, 10) };
+SOCIAL.backhug = { ...SOCIAL.hug, label: 'Peluk dari belakang', icon: '🤗', dur: 7, rel: 5, mood: 'peluk', behind: true, close: 0.32, anim: ['hug', 'idle'], min: (SOCIAL.hug.min || 0) + 10, romantic: true };
 export const WALLET_START = 10000000000;
 
 export const FAMILY_XP = [0, 150, 400, 750, 1200, 1800];
@@ -44,9 +51,9 @@ export const SELF = {
   practice: { label: 'Latihan pidato di cermin', icon: '🎤', build: () => ({ steps: [{ anim: 'talk', dur: 20, eff: { fun: 0.2 }, onTick: (x, gm) => x.sim.xp('karisma', gm * 0.4) }] }) },
 };
 const EXTRA = {
-  mop: { label: 'Pel lantai', icon: '🧹', build: (c) => ({ steps: [{ target: { pos: [c.dirt.x, c.dirt.z + 0.4], yaw: PI }, anim: 'mop', prop: 'mop', walkProp: 'mop', dur: c.dirt.puddle ? 4 : 6, eff: { hygiene: -0.2 },
+  mop: { label: 'Pel lantai', icon: '🧹', build: (c) => ({ steps: [{ target: { pos: [c.dirt.x, c.dirt.z + 0.4], yaw: PI, lvl: c.dirt.lvl || 0 }, anim: 'mop', prop: 'mop', walkProp: 'mop', dur: c.dirt.puddle ? 4 : 6, eff: { hygiene: -0.2 },
     onDone: (x) => { x.g.removeDirt(c.dirt.id); x.g.goal('mop'); } }] }) },
-  go: { label: 'Pergi ke sini', icon: '👣', build: (c) => ({ steps: [{ target: { pos: [c.pos[0], c.pos[1]] }, dur: 0 }] }) },
+  go: { label: 'Pergi ke sini', icon: '👣', build: (c) => ({ steps: [{ target: { pos: [c.pos[0], c.pos[1]], lvl: c.lvl || 0 }, dur: 0 }] }) },
   passout: { label: 'Pingsan kecapekan', icon: '😵', build: () => ({ steps: [{ anim: 'passout', dur: 150, eff: { energy: 0.4 }, noCancel: true }] }) },
 };
 
@@ -59,10 +66,10 @@ if (!TYPES.gate.acts.includes('shopMart')) TYPES.gate.acts.push('shopMart');
 //  Sim (data + helper). Ada di host & tamu.
 // ============================================================
 export class Sim {
-  constructor(name, hh) {
-    this.name = name; this.hh = hh;
-    this.species = PETS[name] || 'human';
-    const home = { Handoyo: [-3.2, 1.6], Naswa: [-2.6, 2.6], Oyen: [-6.5, 4.6], Kapi: [-1.5, -7.6] }[name];
+  constructor(name, hh, species) {
+    this.name = name; this.hh = hh; this.lvl = 0;
+    this.species = species || PETS[name] || 'human';
+    const home = { Handoyo: [-3.2, 1.6], Naswa: [-2.6, 2.6], Oyen: [-6.5, 4.6], Kapi: [-1.5, -7.6], Snowy: [-5.8, 4.9], Kiki: [-2.4, -7.9] }[name] || [-4, 9];
     this.x = home[0]; this.z = home[1]; this.y = 0; this.yaw = PI / 2;
     this.needs = { hunger: 72, energy: 80, hygiene: 70, bladder: 64, social: 58, fun: 62 };
     this.skills = {}; SKILLS.forEach((s) => (this.skills[s.id] = 0));
@@ -75,13 +82,14 @@ export class Sim {
     this.queue = [];
     this.anim = 'idle'; this.prop = null; this.hidden = false; this.seatH = 0.46;
     this.moving = false; this.engagedBy = null; this.icon = null; this.idleT = 0;
-    this.say = null; this.wallet = this.species === 'human' ? WALLET_START : 0; this.bond = { Handoyo: 35, Naswa: 35 }; this.hat = 0;
-    if (this.species !== 'human') { this.prof = null; this.skills = {}; this.outfit = { height: 1 }; this.needs = { hunger: 70, energy: 75, hygiene: 80, bladder: 70, social: 60, fun: 55 }; }
+    this.say = null; this.wallet = this.species === 'human' ? WALLET_START : (this.isPet ? 0 : undefined); this.sex = null; this.coat = null; this.bornAt = null; this.mom = null; this.pregUntil = null; this.bond = { Handoyo: 35, Naswa: 35 }; this.hat = 0;
+    if (this.species !== 'human') { this.prof = null; if (!this.isPet) this.needs = { hunger: 100, energy: 100, hygiene: 100, bladder: 100, social: 100, fun: 100 }; }
+    if (this.isPet) { this.prof = null; this.skills = {}; this.outfit = { height: 1 }; this.needs = { hunger: 70, energy: 75, hygiene: 80, bladder: 70, social: 60, fun: 55 }; }
   }
-  get isPet() { return this.species !== 'human'; }
+  get isPet() { return this.species === 'cat' || this.species === 'capy'; }
   skillLvl(id) { return Math.min(10, Math.floor((this.skills[id] || 0) / SKILL_XP)); }
   xp(id, n) {
-    if (this.isPet) return;
+    if (this.species !== 'human') return;
     const b = this.skillLvl(id);
     this.skills[id] = Math.min(SKILL_XP * 10, (this.skills[id] || 0) + n);
     const a = this.skillLvl(id);
@@ -118,12 +126,12 @@ export class Sim {
       x: this.x, z: this.z, y: this.y, yaw: this.yaw, anim: this.anim, prop: this.prop, hidden: this.hidden, seatH: this.seatH,
       needs: this.needs, skills: this.skills, moods: this.moods, prof: this.prof, outfit: this.outfit, goals: this.goals,
       autonomy: this.autonomy, moving: this.moving, engagedBy: this.engagedBy, icon: this.icon, say: this.say,
-      species: this.species, wallet: this.wallet, bond: this.bond, hat: this.hat,
+      species: this.species, wallet: this.wallet, bond: this.bond, hat: this.hat, lvl: this.lvl, sex: this.sex, coat: this.coat, bornAt: this.bornAt, mom: this.mom, pregUntil: this.pregUntil, away: this.away,
       queue: this.queue.map((q) => ({ id: q.id, label: q.label, icon: q.icon, started: !!q.started, step: q.stepLabel || null })),
     };
   }
   load(p) {
-    for (const k of ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'seatH', 'needs', 'skills', 'moods', 'prof', 'outfit', 'goals', 'autonomy', 'moving', 'engagedBy', 'icon', 'say', 'wallet', 'bond', 'hat']) if (p[k] !== undefined) this[k] = p[k];
+    for (const k of ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'seatH', 'needs', 'skills', 'moods', 'prof', 'outfit', 'goals', 'autonomy', 'moving', 'engagedBy', 'icon', 'say', 'wallet', 'bond', 'hat', 'lvl', 'sex', 'coat', 'bornAt', 'mom', 'pregUntil', 'away']) if (p[k] !== undefined) this[k] = p[k];
   }
 }
 
@@ -141,12 +149,15 @@ export class Household {
   newGame() {
     let id = 1;
     const objects = [...INITIAL_OBJECTS, ...PET_OBJECTS].map(([type, x, z, rot]) => ({ id: id++, type, x, z, rot, s: this.defaultState(type) }));
+    for (const [type, x, z, rot] of LIB_OBJECTS) objects.push({ id: id++, type, x, z, rot, lvl: 1, s: this.defaultState(type) });
     this.world = {
       time: START_TIME, speed: 1, money: WALLET_START * 2, petBond: 30, rel: 32, weather: 'cerah', rainLeft: 0, vendor: false, fam: 0,
       house: { stock: 6, dishes: 1, trash: 2, servings: 0, servingsBy: null, laundry: 2, grass: 30, bills: 0, billDue: null, mail: true, power: true, orderAt: null },
       objects, dirt: [{ id: 1, x: 5.6, z: 1.6 }], nextId: id, dirtId: 2, objVer: 1, dirtVer: 1, log: [], day: 0, ultra: false,
     };
-    this.sims = {}; for (const n of [...HUMANS, ...Object.keys(PETS)]) this.sims[n] = new Sim(n, this);
+    this.sims = {}; for (const n of HUMANS) this.sims[n] = new Sim(n, this);
+    for (const P of PET_START) { const p = new Sim(P.name, this, P.species); p.sex = P.sex; p.coat = P.coat; this.sims[P.name] = p; }
+    initPeople(this);
     for (const n of HUMANS) this.rollGoals(this.sims[n], 0);
     this.lastMin = Math.floor(this.world.time);
     this.rebuildNav();
@@ -170,9 +181,29 @@ export class Household {
   hour() { return Math.floor(this.world.time / 60) % 24; }
   partner(sim) { return this.sims[sim.name === 'Handoyo' ? 'Naswa' : 'Handoyo']; }
   humans() { return HUMANS.map((n) => this.sims[n]); }
-  pets() { return Object.keys(PETS).map((n) => this.sims[n]).filter(Boolean); }
+  pets() { return Object.values(this.sims).filter((s) => s.isPet); }
+  makeSim(name, species) { return new Sim(name, this, species); }
+  actorByName(n) { return this.sims[n] || (this.others && this.others[n]); }
+  planPath(sim, start, tx, tz, tl) {
+    const sl = sim.lvl || 0; const nav = (l) => (l ? this.nav2 : this.nav);
+    if (sl === tl) return nav(sl).find(start.x, start.z, tx, tz);
+    const B = STAIR.bottom, T = STAIR.top;
+    if (sl === 0) { const a = this.nav.find(start.x, start.z, B.x, B.z), b = this.nav2.find(T.x, T.z, tx, tz); if (!a || !b) return null;
+      return [...a, { x: STAIR.x0, z: STAIR.z, st: 'on' }, { x: STAIR.x1, z: STAIR.z, st: 'end', lvl: 1 }, { x: T.x, z: T.z }, ...b]; }
+    const a = this.nav2.find(start.x, start.z, T.x, T.z), b = this.nav.find(B.x, B.z, tx, tz); if (!a || !b) return null;
+    return [...a, { x: STAIR.x1, z: STAIR.z, st: 'on' }, { x: STAIR.x0, z: STAIR.z, st: 'end', lvl: 0 }, { x: B.x, z: B.z }, ...b];
+  }
+  spawnPet(species, mom) {
+    const used = new Set(Object.keys(this.sims)); const pool = BABY_NAMES[species].filter((n) => !used.has(n));
+    const name = pool.length ? pool[Math.floor(Math.random() * pool.length)] : `${species === 'cat' ? 'Kitten' : 'Capy'} ${Object.keys(this.sims).length}`;
+    const p = new Sim(name, this, species); p.sex = Math.random() < 0.5 ? 'm' : 'f';
+    p.coat = species === 'cat' ? ['tabby', 'white', 'mix'][Math.floor(Math.random() * 3)] : mom.coat;
+    p.bornAt = this.world.time; p.mom = mom.name; p.x = mom.x + (Math.random() - 0.5) * 0.6; p.z = mom.z + (Math.random() - 0.5) * 0.6; p.lvl = mom.lvl || 0; p.y = by(p);
+    p.needs = { hunger: 80, energy: 80, hygiene: 90, bladder: 80, social: 70, fun: 70 };
+    this.sims[name] = p; return p;
+  }
   syncMoney() { this.world.money = this.humans().reduce((a, h) => a + h.wallet, 0); }
-  payer(o) { if (o.sim && this.sims[o.sim] && !this.sims[o.sim].isPet) return this.sims[o.sim]; if (this.actor && !this.actor.isPet) return this.actor; const h = this.humans(); return h[0].wallet >= h[1].wallet ? h[0] : h[1]; }
+  payer(o) { if (o.sim && this.sims[o.sim] && this.sims[o.sim].species === 'human') return this.sims[o.sim]; if (this.actor && this.actor.species === 'human') return this.actor; const h = this.humans(); return h[0].wallet >= h[1].wallet ? h[0] : h[1]; }
   callPet(name, obj) { const p = this.sims[name]; if (p && !p.queue.length && !p.engagedBy) this.queueAct(p, 'zoomies', null, { self: true }); }
   famLevel() { let l = 0; FAMILY_XP.forEach((x, i) => { if (this.world.fam >= x) l = i; }); return l; }
   relLevel() { return REL_LEVELS.find((l) => this.world.rel >= l.min); }
@@ -185,19 +216,36 @@ export class Household {
 
   // ---------- nav ----------
   rebuildNav(excludeId) {
+    if (!this.nav2) this.nav2 = new NavGrid();
+    const n2 = this.nav2; n2.stat.fill(1);
+    for (let j = 0; j < n2.h; j++) for (let i = 0; i < n2.w; i++) { const c = n2.center(i, j); if (c.x > HOUSE.minX + 0.15 && c.x < HOUSE.maxX - 0.15 && c.z > HOUSE.minZ + 0.15 && c.z < HOUSE.maxZ - 0.15) n2.stat[n2.idx(i, j)] = 0; }
+    n2.rect(n2.stat, HOLE.minX - 0.05, HOLE.minZ - 0.1, HOLE.maxX + 0.12, HOLE.maxZ + 0.12);
+    for (const o of this.world.objects) { if ((o.lvl || 0) !== 1 || o.id === excludeId || TYPES[o.type].walk) continue; const f = footprint(o.type, o.x, o.z, o.rot); n2.rect(n2.stat, f.minX + 0.04, f.minZ + 0.04, f.maxX - 0.04, f.maxZ - 0.04); }
     const n = this.nav; n.stat.fill(0);
+    n.rect(n.stat, STAIR.x1 - 0.05, STAIR.zMin - 0.05, STAIR.x0, STAIR.zMax + 0.05);
     for (const w of WALLS) n.segment(n.stat, w.a, w.b, 0.1);
     for (const f of FENCES) n.segment(n.stat, f.a, f.b, 0.1);
     for (const [x, z] of TREES) n.rect(n.stat, x - 0.3, z - 0.3, x + 0.3, z + 0.3);
     for (const [x, z] of [[9.4, -1.3], [12.6, -1.3], [9.4, 6.3], [12.6, 6.3]]) n.rect(n.stat, x - 0.1, z - 0.1, x + 0.1, z + 0.1);
     for (const o of this.world.objects) {
-      if (o.id === excludeId || TYPES[o.type].walk) continue;
+      if (o.id === excludeId || TYPES[o.type].walk || (o.lvl || 0) !== 0) continue;
       const f = footprint(o.type, o.x, o.z, o.rot);
       n.rect(n.stat, f.minX + 0.04, f.minZ + 0.04, f.maxX - 0.04, f.maxZ - 0.04);
     }
   }
-  canPlace(type, x, z, rot, excludeId) {
+  canPlace(type, x, z, rot, excludeId, lvl = 0) {
     const T = TYPES[type]; const f = footprint(type, x, z, rot);
+    if (lvl === 1) {
+      if (f.minX < HOUSE.minX + 0.15 || f.maxX > HOUSE.maxX - 0.15 || f.minZ < HOUSE.minZ + 0.15 || f.maxZ > HOUSE.maxZ - 0.15) return 'Harus di dalam lantai 2';
+      if (['car', 'mower', 'pond', 'capyBed', 'veggie', 'plant', 'clothesline', 'mailbox', 'outdoorBin', 'gate'].includes(type)) return 'Benda ini harus di lantai 1 / halaman';
+      if (T.walk) return true;
+      this.rebuildNav(excludeId); const n2 = this.nav2;
+      for (let xx = f.minX + 0.05; xx <= f.maxX - 0.05 + 1e-6; xx += 0.2) for (let zz = f.minZ + 0.05; zz <= f.maxZ - 0.05 + 1e-6; zz += 0.2) if (!n2.okXZ(Math.min(xx, f.maxX - 0.05), Math.min(zz, f.maxZ - 0.05))) { this.rebuildNav(); return 'Bertabrakan dengan benda/lubang tangga'; }
+      n2.rect(n2.stat, f.minX + 0.04, f.minZ + 0.04, f.maxX - 0.04, f.maxZ - 0.04);
+      const tmp = { id: -1, type, x, z, rot, s: {} };
+      for (const sp of T.spots) { const w = spotWorld(tmp, sp); if (!n2.okXZ(w.ax, w.az)) { this.rebuildNav(); return 'Bagian depan tertutup'; } }
+      this.rebuildNav(); return true;
+    }
     if (f.minX < LOT.minX + 0.2 || f.maxX > LOT.maxX - 0.2 || f.minZ < LOT.minZ + 0.2 || f.maxZ > LOT.maxZ - 0.2) return 'Harus di dalam kavling';
     if (T.walk) return true;
     this.rebuildNav(excludeId);
@@ -263,9 +311,9 @@ export class Household {
     sim.goals = pick.map((g) => ({ key: g.key, label: g.label, need: g.need, prog: 0, done: false }));
   }
   removeDirt(id) { this.world.dirt = this.world.dirt.filter((d) => d.id !== id); this.world.dirtVer++; }
-  addDirt(x, z, puddle = false) {
+  addDirt(x, z, puddle = false, lvl = 0) {
     if (this.world.dirt.length > 8) return;
-    this.world.dirt.push({ id: this.world.dirtId++, x, z, puddle }); this.world.dirtVer++;
+    this.world.dirt.push({ id: this.world.dirtId++, x, z, puddle, lvl }); this.world.dirtVer++;
   }
   partnerSleepingOn(sim, objId) {
     const p = this.partner(sim); const a = p.cur;
@@ -294,10 +342,12 @@ export class Household {
   command(c) {
     const sim = c.sim ? this.sims[c.sim] : null;
     switch (c.c) {
-      case 'act': return this.queueAct(sim, c.key, c.objId);
+      case 'act': return this.queueAct(sim, c.key, c.objId, c.book ? { book: bookById(c.book) } : {});
+      case 'loan': return loanDecision(this, c);
+      case 'staff': if (STAFF[c.name]) { this.world.staffOn[c.name] = !!c.on; this.toast(c.on ? `${c.name} dipekerjakan lagi 👍` : `${c.name} diliburkan dulu`, 'info'); } return;
       case 'self': return this.queueAct(sim, c.key, null, { self: true });
       case 'mop': { const d = this.world.dirt.find((x) => x.id === c.dirtId); if (d) this.queueAct(sim, 'mop', null, { dirt: d }); return; }
-      case 'go': return this.queueAct(sim, 'go', null, { pos: [c.x, c.z] }, true);
+      case 'go': return this.queueAct(sim, 'go', null, { pos: [c.x, c.z], lvl: c.lvl || 0 }, true);
       case 'social': return this.queueSocial(sim, c.key, c.tgt, c.table);
       case 'give': { if (!sim || sim.isPet) return; const p = this.partner(sim); const amt = Math.min(sim.wallet, Math.max(0, +c.amount || 0)); if (amt <= 0) return;
         sim.wallet -= amt; p.wallet += amt; this.syncMoney(); this.world.log.unshift({ t: this.world.time, d: 0, why: `${sim.name} → ${p.name}: ${fmtRp(amt)}` });
@@ -306,27 +356,27 @@ export class Household {
       case 'speed': this.world.speed = c.v; return;
       case 'auto': sim.autonomy = c.v; return;
       case 'outfit': sim.outfit = { ...sim.outfit, ...c.outfit }; return;
-      case 'buy': return this.buy(c.type, c.x, c.z, c.rot, c.sim);
-      case 'move': return this.moveObj(c.id, c.x, c.z, c.rot);
+      case 'buy': return this.buy(c.type, c.x, c.z, c.rot, c.sim, c.lvl || 0);
+      case 'move': return this.moveObj(c.id, c.x, c.z, c.rot, c.lvl || 0);
       case 'sell': this._seller = c.sim; return this.sell(c.id);
       case 'say': if (sim) { sim.say = { text: String(c.text).slice(0, 120), until: Date.now() + 6000 }; this.hooks.chat && this.hooks.chat(sim.name, sim.say.text); } return;
     }
   }
-  buy(type, x, z, rot, simName) {
+  buy(type, x, z, rot, simName, lvl = 0) {
     const T = TYPES[type]; if (!T || T.fixed) return;
     const buyer = this.payer({ sim: simName });
     if (buyer.wallet < T.price) return this.toast(`Uang ${buyer.name} tidak cukup`, 'bad');
-    const ok = this.canPlace(type, x, z, rot); if (ok !== true) return this.toast(ok, 'bad');
-    const o = { id: this.world.nextId++, type, x, z, rot, s: this.defaultState(type) };
+    const ok = this.canPlace(type, x, z, rot, undefined, lvl); if (ok !== true) return this.toast(ok, 'bad');
+    const o = { id: this.world.nextId++, type, x, z, rot, lvl, s: this.defaultState(type) };
     this.world.objects.push(o); this.world.objVer++;
     this.op({ o: 'money', d: -T.price, why: `Beli ${T.name}`, sim: buyer.name });
     this.rebuildNav(); this.toast(`${T.name} terpasang ✔`, 'good'); this.addFam(4);
   }
-  moveObj(id, x, z, rot) {
+  moveObj(id, x, z, rot, lvl = 0) {
     const o = this.obj(id); if (!o || TYPES[o.type].fixed) return;
     if (this.objInUse(id)) return this.toast('Benda sedang dipakai', 'bad');
-    const ok = this.canPlace(o.type, x, z, rot, id); if (ok !== true) return this.toast(ok, 'bad');
-    o.x = x; o.z = z; o.rot = rot; this.world.objVer++; this.rebuildNav();
+    const ok = this.canPlace(o.type, x, z, rot, id, lvl); if (ok !== true) return this.toast(ok, 'bad');
+    o.x = x; o.z = z; o.rot = rot; o.lvl = lvl; this.world.objVer++; this.rebuildNav();
   }
   sell(id) {
     const o = this.obj(id); if (!o || TYPES[o.type].fixed) return;
@@ -355,15 +405,16 @@ export class Household {
         const c = this.ctx(sim, o);
         let ok = true; try { ok = I.check ? I.check(c) : true; } catch (e) { ok = false; }
         if (ok === false) continue;
-        items.push({ key, label: typeof I.label === 'function' ? I.label(c) : I.label, icon: I.icon, disabled: ok !== true ? ok : null, cmd: { c: 'act', key, objId: o.id } });
+        items.push({ key, ui: I.ui, label: typeof I.label === 'function' ? I.label(c) : I.label, icon: I.icon, disabled: ok !== true ? ok : null, cmd: { c: 'act', key, objId: o.id } });
       }
     } else if (target.sim) {
-      const p = this.sims[target.sim];
+      const p = this.actorByName(target.sim); if (!p) return items;
       if (p === sim && sim.isPet) {
         for (const key in PET_SELF) { const I = PET_SELF[key]; if (I.only !== 'any' && I.only !== sim.species) continue; items.push({ key, label: I.label, icon: I.icon, disabled: null, cmd: { c: 'self', key } }); }
-      } else if (sim.isPet || p.isPet) {
+      } else if (sim.isPet || p.isPet || p.species === 'npc' || p.species === 'staff') {
         for (const key in PAIR) {
-          const S = PAIR[key]; if (!pairMatch(S, sim.species, p.species)) continue;
+          const S = PAIR[key]; if (S.hidden || !pairMatch(S, sim.species, p.species)) continue;
+          if (S.onlyName && S.onlyName !== p.name) continue; if (S.need && !S.need(this, sim, p)) continue;
           let dis = null; if (p.hidden) dis = `${p.name} sedang pergi`;
           items.push({ key, label: S.label, icon: S.icon, disabled: dis, cmd: { c: 'social', key, tgt: p.name, table: 'pair' } });
         }
@@ -409,8 +460,8 @@ export class Household {
   queueSocial(sim, key, tgt, table) {
     if (!sim) return;
     if (!tgt) tgt = sim.isPet ? null : this.partner(sim).name;
-    const p = this.sims[tgt]; if (!p || p === sim) return;
-    if (!table) table = (!sim.isPet && !p.isPet) ? 'social' : 'pair';
+    const p = this.actorByName(tgt); if (!p || p === sim) return;
+    if (!table) table = (sim.species === 'human' && p.species === 'human') ? 'social' : 'pair';
     const S = table === 'pair' ? PAIR[key] : SOCIAL[key]; if (!S) return;
     if (table === 'pair' && !pairMatch(S, sim.species, p.species)) return;
     if (sim.queue.length >= 6) return;
@@ -443,7 +494,7 @@ export class Household {
     this.actor = null;
   }
   release(sim) { for (const [k, v] of this.reserved) if (v === sim.name) this.reserved.delete(k); }
-  standUp(sim) { const l = sim.leaveTo; sim.leaveTo = null; sim.x = l.x; sim.z = l.z; sim.y = 0; }
+  standUp(sim) { const l = sim.leaveTo; sim.leaveTo = null; sim.x = l.x; sim.z = l.z; sim.y = by(sim); }
 
   pickSpot(sim, o, kind) {
     const T = TYPES[o.type]; let best = null, bd = 1e9;
@@ -452,21 +503,21 @@ export class Household {
       if (pk) i = 'p' + i;
       else if (kind === 'seat' && !sp.seat) return; if (kind === 'lie' && !sp.lie) return; if (kind === 'stand' && (sp.seat || sp.lie)) return;
       const key = o.id + ':' + i; const r = this.reserved.get(key); if (r && r !== sim.name) return;
-      const w = spotWorld(o, sp); const d = (w.ax - sim.x) ** 2 + (w.az - sim.z) ** 2;
+      const w = spotWorld(o, sp); const d = (w.ax - sim.x) ** 2 + (w.az - sim.z) ** 2 + ((o.lvl || 0) !== (sim.lvl || 0) ? 400 : 0);
       if (d < bd) { bd = d; best = { ...w, key }; }
     });
     return best;
   }
   resolve(sim, step, act) {
     const tg = step.target;
-    if (!tg) return { here: true, obj: act.obj || null };
-    if (tg.pos) return { ax: tg.pos[0], az: tg.pos[1], px: tg.pos[0], pz: tg.pos[1], py: 0, yaw: tg.yaw ?? null, obj: null };
+    if (!tg) return { here: true, obj: act.obj || null, lvl: sim.lvl || 0 };
+    if (tg.pos) return { ax: tg.pos[0], az: tg.pos[1], px: tg.pos[0], pz: tg.pos[1], py: 0, yaw: tg.yaw ?? null, obj: null, lvl: tg.lvl || 0 };
     let cands;
     if (tg.obj !== undefined) cands = [this.obj(tg.obj)].filter(Boolean);
     else { const types = [].concat(tg.type); cands = this.world.objects.filter((o) => types.includes(o.type)); }
     const ref = tg.near || sim;
-    cands.sort((a, b) => ((a.x - ref.x) ** 2 + (a.z - ref.z) ** 2) - ((b.x - ref.x) ** 2 + (b.z - ref.z) ** 2));
-    for (const o of cands) { const sp = this.pickSpot(sim, o, tg.kind); if (sp) return { ...sp, obj: o }; }
+    const rl = ref.lvl || 0; const dd = (o) => (o.x - ref.x) ** 2 + (o.z - ref.z) ** 2 + ((o.lvl || 0) !== rl ? 400 : 0); cands.sort((a, b) => dd(a) - dd(b));
+    for (const o of cands) { const sp = this.pickSpot(sim, o, tg.kind); if (sp) return { ...sp, obj: o, lvl: o.lvl || 0 }; }
     const busy = cands.length > 0 && !step.fallbackHere;
     if (busy) return { busy: true };
     if (step.fallbackTarget) { const o = this.obj(step.fallbackTarget.obj); const sp = o && this.pickSpot(sim, o, null); if (sp) return { ...sp, obj: o, anim: step.fallbackHere, hasP: false }; }
@@ -499,25 +550,26 @@ export class Household {
     a.dest = dest; a.x.obj = dest.obj || (dest.here ? a.obj : null);
     if (dest.here) { a.phase = 'do'; return; }
     const d = Math.hypot(dest.ax - sim.x, dest.az - sim.z);
-    if (d < 0.08) { a.phase = 'pose'; a.poseT = 0; return; }
+    if (d < 0.08 && (dest.lvl || 0) === (sim.lvl || 0)) { a.phase = 'pose'; a.poseT = 0; return; }
     const start = sim.leaveTo ? { ...sim.leaveTo } : { x: sim.x, z: sim.z };
-    const path = this.nav.find(start.x, start.z, dest.ax, dest.az);
+    const path = this.planPath(sim, start, dest.ax, dest.az, dest.lvl || 0);
     if (!path) {
       if (d < 1.2) { a.path = [{ x: dest.ax, z: dest.az }]; }
       else { this.toast(`${sim.name} tidak bisa ke sana`, 'bad'); this.endAction(sim, a, true); return; }
     } else a.path = path;
-    if (sim.leaveTo) { a.path.unshift({ x: sim.leaveTo.x, z: sim.leaveTo.z }); sim.leaveTo = null; sim.y = 0; }
+    if (sim.leaveTo) { a.path.unshift({ x: sim.leaveTo.x, z: sim.leaveTo.z }); sim.leaveTo = null; sim.y = by(sim); }
     a.phase = 'walk';
   }
 
   // ---------- sosial ----------
   startSocial(sim, a) {
-    const p = this.sims[a.tgt] || this.partner(sim); const S = a.table === 'pair' ? PAIR[a.key] : SOCIAL[a.key];
+    const p = this.actorByName(a.tgt) || this.partner(sim); const S = a.table === 'pair' ? PAIR[a.key] : SOCIAL[a.key];
     const fail = (m) => { this.toast(m, 'bad'); sim.queue.shift(); };
     if (p.hidden) return fail(`${p.name} sedang di luar rumah`);
     const pc = p.cur;
     if (pc && pc.kind === 'inter' && ['sleep', 'nap', 'napSofa', 'passout', 'sleepPet', 'napSofaCat', 'napBedCat'].includes(pc.key) && a.key !== 'cuddle') return fail(`${p.name} sedang tidur — jangan diganggu 😴`);
-    if (sim.isPet && !p.isPet && (pc || p.queue.length > 1)) { sim.queue.shift(); return; }
+    if (sim.species !== 'human' && p.species === 'human' && (pc || p.queue.length > 1)) { sim.queue.shift(); return; }
+    if (p.hidden || p.away) return fail(`${p.name} sedang tidak ada`);
     if (p.engagedBy) return fail(`${p.name} sedang sibuk`);
     if (pc && pc.kind === 'social') return fail(`${p.name} sedang mengajak ngobrol`);
     if (pc) { if (this.stepNoCancel(pc)) return fail(`${p.name} sedang sibuk`); this.endAction(p, pc, true); }
@@ -535,27 +587,28 @@ export class Household {
       for (let k = 0; k < 8 && !dest; k++) {
         const ang = Math.atan2(ux, uz) + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * PI / 4;
         const x = p.x + Math.sin(ang) * d, z = p.z + Math.cos(ang) * d;
-        if (this.nav.okXZ(x, z) || k === 7) dest = { x, z };
+        if ((p.lvl ? this.nav2 : this.nav).okXZ(x, z) || k === 7) dest = { x, z };
       }
     }
     a.dest = { ax: dest.x, az: dest.z, px: dest.x, pz: dest.z, py: 0, yaw: null, obj: null };
-    const path = Math.hypot(dest.x - sim.x, dest.z - sim.z) < 0.1 ? [] : (this.nav.find(sim.x, sim.z, dest.x, dest.z) || [{ x: dest.x, z: dest.z }]);
-    if (sim.leaveTo) { path.unshift({ ...sim.leaveTo }); sim.leaveTo = null; sim.y = 0; }
+    a.dest.lvl = p.lvl || 0;
+    const path = Math.hypot(dest.x - sim.x, dest.z - sim.z) < 0.1 && (sim.lvl || 0) === (p.lvl || 0) ? [] : (this.planPath(sim, sim, dest.x, dest.z, p.lvl || 0) || [{ x: dest.x, z: dest.z }]);
+    if (sim.leaveTo) { path.unshift({ ...sim.leaveTo }); sim.leaveTo = null; sim.y = by(sim); }
     a.path = path; a.phase = path.length ? 'walk' : 'do'; a.steps = null;
   }
   releasePartner(sim, a) {
-    const p = a.partner && this.sims[a.partner];
-    if (p && p.engagedBy === sim.name) { p.engagedBy = null; p.anim = 'idle'; p.icon = null; p.y = 0; if (a.carryFrom) { p.x = a.carryFrom.x; p.z = a.carryFrom.z; } }
-    sim.icon = null; if (a.riding) { sim.y = 0; sim.x += 0.5; } sim.prop = null;
+    const p = a.partner && this.actorByName(a.partner);
+    if (p && p.engagedBy === sim.name) { p.engagedBy = null; p.anim = 'idle'; p.icon = null; p.y = by(p); if (a.carryFrom) { p.x = a.carryFrom.x; p.z = a.carryFrom.z; } }
+    sim.icon = null; if (a.riding) { sim.y = by(sim); sim.x += 0.5; } sim.prop = null;
   }
   tickSocial(sim, a, gm) {
     const pairT = a.table === 'pair';
-    const S = pairT ? PAIR[a.key] : SOCIAL[a.key]; const p = this.sims[a.partner];
+    const S = pairT ? PAIR[a.key] : SOCIAL[a.key]; const p = this.actorByName(a.partner);
     if (!p || p.engagedBy !== sim.name) { this.endAction(sim, a, true); return; }
     // saling berhadapan
     const face = Math.atan2(p.x - sim.x, p.z - sim.z);
     if (S.ride) { a.riding = true; sim.x = p.x; sim.z = p.z; sim.yaw = p.yaw; sim.y = p.y + 0.6; }
-    else if (S.carry) { if (!a.carryFrom) a.carryFrom = { x: p.x, z: p.z }; p.x = sim.x + Math.sin(sim.yaw) * 0.22; p.z = sim.z + Math.cos(sim.yaw) * 0.22; p.y = 0.92; p.yaw = sim.yaw + PI / 2; }
+    else if (S.carry) { if (!a.carryFrom) a.carryFrom = { x: p.x, z: p.z }; p.x = sim.x + Math.sin(sim.yaw) * 0.22; p.z = sim.z + Math.cos(sim.yaw) * 0.22; p.y = by(sim) + 0.92; p.yaw = sim.yaw + PI / 2; }
     else { sim.yaw = face; if (!S.behind) p.yaw = face + PI; }
     if (!a.begun) {
       a.begun = true;
@@ -567,7 +620,7 @@ export class Household {
     }
     const anims = a.reject ? (pairT ? [sim.isPet ? 'idle' : 'sad', 'jog'] : ['talk', 'angry']) : S.anim;
     sim.anim = anims[0]; p.anim = anims[1]; sim.icon = S.icon; p.icon = a.reject ? '💢' : null; sim.prop = S.prop || null;
-    if (a.reject && S.carry) { p.y = 0; if (a.carryFrom) { p.x = a.carryFrom.x; p.z = a.carryFrom.z; } }
+    if (a.reject && S.carry) { p.y = by(p); if (a.carryFrom) { p.x = a.carryFrom.x; p.z = a.carryFrom.z; } }
     a.t += gm;
     if (!a.reject) {
       for (const k in S.gain) sim.addNeed(k, S.gain[k] * gm);
@@ -585,6 +638,10 @@ export class Household {
         if (S.mood) sim.mood(S.mood); if (S.pmood) p.mood(S.pmood);
         if (S.hat) p.hat = this.world.time + 120;
         if (!sim.isPet && p.isPet) this.goal('pets', sim);
+        if (S.give) { this.op({ o: 'house', k: 'stock', d: -1 }); this.toast(`${p.name}: "Wah makasih banyak ya!" 😊`, 'good'); }
+        if (S.pay) this.op({ o: 'money', d: -S.pay, why: `Bonus untuk ${p.name}`, sim: sim.name });
+        if (S.collect) collectLoan(this);
+        if (S.mate) { const f = sim.sex === 'f' ? sim : p; if (Math.random() < 0.5 && !f.pregUntil) { f.pregUntil = this.world.time + (f.species === 'cat' ? 2 : 3) * 1440; f.mood('hamil'); this.toast(`🎉 ${f.name} hamil! Bayinya lahir sekitar ${f.species === 'cat' ? 2 : 3} hari lagi`, 'good', true); this.sfx('fanfare'); } }
         if (S.beg) { const bowl = this.nearestObj('petBowl', p.x, p.z); if (bowl && (bowl.s.food || 0) < 40) { if (p.autonomy) this.queueAct(p, 'fillBowl', bowl.id); this.toast(`${sim.name} minta makan ke ${p.name} ${PET_EMOJI[sim.species] || ''}`, 'info'); } }
         if (Math.random() < 0.2) this.addFam(1);
       } else {
@@ -614,10 +671,11 @@ export class Household {
     if (gm > 0) {
       W.time += gm;
       const m = Math.floor(W.time);
-      while (this.lastMin < m) { this.lastMin++; this.minuteEvents(this.lastMin); }
+      while (this.lastMin < m) { this.lastMin++; this.minuteEvents(this.lastMin); peopleMinute(this, this.lastMin); this.births(); }
       this.continuous(gm);
     }
     for (const s of sims) this.tickSim(s, dtReal, gm, mul);
+    for (const s of Object.values(this.others || {})) if (!s.hidden) this.tickSim(s, dtReal, gm, mul);
   }
   continuous(gm) {
     const W = this.world, H = W.house, h = gm / 60;
@@ -652,7 +710,7 @@ export class Household {
     // kejadian kritis
     if (sim.isPet && sim.needs.bladder <= 0) {
       sim.needs.bladder = 100;
-      if (sim.x > HOUSE.minX && sim.x < HOUSE.maxX && sim.z > HOUSE.minZ && sim.z < HOUSE.maxZ) { this.addDirt(sim.x + 0.2, sim.z, true); this.toast(`${sim.name} pipis sembarangan di lantai 😾 — pel ya`, 'bad'); }
+      if (sim.x > HOUSE.minX && sim.x < HOUSE.maxX && sim.z > HOUSE.minZ && sim.z < HOUSE.maxZ) { this.addDirt(sim.x + 0.2, sim.z, true, sim.lvl || 0); this.toast(`${sim.name} pipis sembarangan di lantai 😾 — pel ya`, 'bad'); }
     }
     if (sim.isPet && sim.needs.energy <= 0) { sim.needs.energy = 8; if (sim.cur && !this.stepNoCancel(sim.cur)) this.endAction(sim, sim.cur, true); this.queueAct(sim, 'napHere', null, { self: true }); }
     if (!sim.isPet && sim.needs.bladder <= 0 && !sim.hidden) {
@@ -709,6 +767,15 @@ export class Household {
       if (hr >= 9 && hr <= 20 && Math.random() < 0.04) this.randomEvent();
     }
   }
+  births() {
+    for (const f of this.pets()) {
+      if (!f.pregUntil || this.world.time < f.pregUntil) continue;
+      f.pregUntil = null; f.clearMood('hamil');
+      const n = f.species === 'cat' ? 2 + (Math.random() < 0.4 ? 1 : 0) : 2;
+      const kids = []; for (let i = 0; i < n && this.pets().length < 14; i++) kids.push(this.spawnPet(f.species, f).name);
+      if (kids.length) { this.toast(`🍼 ${f.name} melahirkan ${kids.length} ${f.species === 'cat' ? 'anak kucing' : 'bayi capybara'}: ${kids.join(', ')}!`, 'good', true); this.sfx('fanfare'); this.addFam(20); for (const h of this.humans()) h.mood('kapiLucu'); }
+    }
+  }
   randomEvent() {
     const ev = [
       () => { this.op({ o: 'house', k: 'stock', d: 2 }); this.toast('Bu RT mengantar rendang hasil arisan 🍛 (+2 stok)', 'good', true); },
@@ -728,7 +795,7 @@ export class Household {
     if (!a) {
       sim.moving = false; if (!sim.queue.length) { sim.anim = 'idle'; sim.prop = null; }
       if (sim.queue.length) { this.startAction(sim, sim.queue[0]); a = sim.cur; }
-      else { sim.idleT += gm; if (sim.autonomy && sim.idleT > (sim.isPet ? 12 : 25)) { sim.idleT = 0; if (sim.isPet) petAutonomy(this, sim); else this.autonomy(sim); } return; }
+      else { sim.idleT += gm; if (sim.autonomy && (sim.isPet || sim.species === 'human') && sim.idleT > (sim.isPet ? 12 : 25)) { sim.idleT = 0; if (sim.isPet) petAutonomy(this, sim); else this.autonomy(sim); } return; }
       if (!a) return;
     }
     if (a.kind === 'social' && a.phase === 'do') { sim.moving = false; return this.tickSocial(sim, a, gm); }
@@ -745,7 +812,7 @@ export class Household {
     }
     if (a.phase === 'pose') {
       const d = a.dest;
-      if (d.hasP && !(step && step.noPose)) { sim.leaveTo = { x: d.ax, z: d.az }; sim.x = d.px; sim.z = d.pz; sim.y = d.py; }
+      if (d.hasP && !(step && step.noPose)) { sim.leaveTo = { x: d.ax, z: d.az }; sim.x = d.px; sim.z = d.pz; sim.y = by(sim) + d.py; }
       if (d.yaw !== null && d.yaw !== undefined) sim.yaw = d.yaw;
       if (d.seat) sim.seatH = d.seat;
       a.phase = 'do'; return;
@@ -789,8 +856,10 @@ export class Household {
         const ty = Math.atan2(dx, dz); let dy = ty - sim.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
         sim.yaw += dy * Math.min(1, dt * 12);
       }
-      if (d <= left) { sim.x = p.x; sim.z = p.z; left -= d; a.path.shift(); }
+      if (d <= left) { sim.x = p.x; sim.z = p.z; left -= d; a.path.shift();
+        if (p.st === 'on') a.stair = true; if (p.st === 'end') { a.stair = false; sim.lvl = p.lvl; sim.y = by(sim); } }
       else { sim.x += dx / d * left; sim.z += dz / d * left; left = 0; }
+      if (a.stair) sim.y = LVL_H * clamp((STAIR.x0 - sim.x) / (STAIR.x0 - STAIR.x1), 0, 1);
     }
     if (!a.path.length) {
       sim.moving = false;
@@ -852,7 +921,9 @@ export class Household {
   }
 
   bondAdd(a, b, d) {
-    if (!a.isPet && !b.isPet) return this.op({ o: 'rel', d });
+    if (a.species === 'human' && b.species === 'human') return this.op({ o: 'rel', d });
+    const np = a.species === 'npc' || a.species === 'staff' ? a : (b.species === 'npc' || b.species === 'staff' ? b : null);
+    if (np) { const W = this.world; W.nrel[np.name] = clamp((W.nrel[np.name] || 0) + d, -100, 100); return; }
     if (a.isPet && b.isPet) { this.world.petBond = clamp((this.world.petBond || 0) + d, -100, 100); return; }
     const pet = a.isPet ? a : b, hum = a.isPet ? b : a;
     pet.bond[hum.name] = clamp((pet.bond[hum.name] || 0) + d, -100, 100);
@@ -861,16 +932,17 @@ export class Household {
   snapshot() {
     const W = this.world; const sims = {};
     for (const n in this.sims) sims[n] = this.sims[n].pub();
-    return { world: W, sims };
+    const others = {}; for (const n in this.others || {}) others[n] = this.others[n].pub();
+    return { world: W, sims, others };
   }
   applySnapshot(s) {
     const prevObjVer = this.world.objVer;
     this.world = s.world;
-    for (const n in s.sims) this.sims[n].load(s.sims[n]);
-    for (const n in s.sims) this.sims[n].queue = s.sims[n].queue;
+    for (const n in s.sims) { if (!this.sims[n]) this.sims[n] = new Sim(n, this, s.sims[n].species); this.sims[n].load(s.sims[n]); this.sims[n].queue = s.sims[n].queue; }
+    for (const n in s.others || {}) { if (!this.others[n]) this.others[n] = new Sim(n, this, s.others[n].species); this.others[n].load(s.others[n]); this.others[n].queue = s.others[n].queue; }
     if (s.world.objVer !== prevObjVer) this.rebuildNav();
   }
-  saveData() { const snap = JSON.parse(JSON.stringify(this.snapshot())); for (const n in snap.sims) snap.sims[n].queue = []; snap.v = 2; return snap; }
+  saveData() { const snap = JSON.parse(JSON.stringify(this.snapshot())); for (const n in snap.sims) snap.sims[n].queue = []; delete snap.others; snap.v = 3; return snap; }
   loadSave(s) {
     this.world = s.world; this.world.speed = 1;
     if (!s.v || s.v < 2) {
@@ -878,7 +950,16 @@ export class Household {
       this.world.nextId = id; this.world.objVer++; this.world.petBond = 30;
       for (const n of HUMANS) if (s.sims[n]) s.sims[n].wallet = WALLET_START;
     }
-    for (const n in s.sims) { if (!this.sims[n]) continue; this.sims[n].load(s.sims[n]); this.sims[n].queue = []; this.sims[n].engagedBy = null; this.sims[n].hidden = false; this.sims[n].anim = 'idle'; this.sims[n].prop = null; this.sims[n].y = 0; this.sims[n].icon = null; }
+    if (s.v < 3) {
+      let id = this.world.nextId;
+      for (const [type, x, z, rot] of LIB_OBJECTS) this.world.objects.push({ id: id++, type, x, z, rot, lvl: 1, s: this.defaultState(type) });
+      this.world.nextId = id; this.world.objVer++;
+      for (const P of PET_START) if (!s.sims[P.name]) s.sims[P.name] = { ...this.sims[P.name].pub(), sex: P.sex, coat: P.coat };
+      for (const P of PET_START) if (s.sims[P.name]) { s.sims[P.name].sex = s.sims[P.name].sex || P.sex; s.sims[P.name].coat = s.sims[P.name].coat || P.coat; }
+    }
+    for (const n in s.sims) if (!this.sims[n]) this.sims[n] = new Sim(n, this, s.sims[n].species);
+    initPeople(this);
+    for (const n in s.sims) { if (!this.sims[n]) continue; this.sims[n].load(s.sims[n]); this.sims[n].queue = []; this.sims[n].engagedBy = null; this.sims[n].hidden = false; this.sims[n].anim = 'idle'; this.sims[n].prop = null; this.sims[n].y = by(this.sims[n]); this.sims[n].icon = null; }
     this.syncMoney(); this.lastMin = Math.floor(this.world.time); this.reserved.clear();
     this.rebuildNav();
   }

@@ -27,6 +27,15 @@ vercel --prod
 - **Hewan peliharaan: Oyen (kucing oranye) & Kapi (capybara).** Punya kebutuhan, AI sendiri, dan ikatan dengan Handoyo/Naswa. Benda baru di kategori Beli → Hewan: mangkok makan, kasur kucing, kotak pasir, tiang garukan, rumah capybara, kolam capybara.
 - **Kamu bisa jadi hewannya.** Klik kartu Oyen/Kapi di panel (atau tombol "Main jadi capybara" di menu awal). Kapi bisa berendam di kolam, chill pakai jeruk di kepala, nyemil kebun; Oyen bisa naik ke punggung Kapi, garuk tiang, zoomies, dan menjatuhkan gelas. Saat main berdua, dua pemain sama-sama boleh mengendalikan hewan.
 
+## Update 3
+- **Efek suara per komponen** (dibuat langsung oleh browser, tanpa file audio): langkah kaki, desis masakan, air shower & keran, TV, musik speaker, ketikan, kunyahan, dengkur, siram toilet, mesin potong rumput, "ocehan" ala Simlish saat ngobrol, tawa, "awww" saat berpelukan, meong & dengkuran kucing, cicit capybara, cipratan kolam, halaman buku, burung di siang hari, jangkrik malam, hujan. Suara makin pelan kalau jauh dari kamera. Volume di Menu.
+- **Pelukan**: Peluk, Pelukan hangat yang lama, Peluk dari belakang (suami-istri), Peluk erat hewan, dan Pelukan hangat dengan tetangga.
+- **Tetangga aktif**: Pak Ismail (gemuk, pakai peci & batik, suka numpang nonton bola & nyicip makanan), Bu Aisyah (sering antar opor), Pak Budi & Bu Rina (jogging pagi, ngerumpi), dan **Bang Jefri** yang sering datang pinjam uang — muncul jendela Pinjamkan/Tolak; dia melunasi pokok + bunga (kadang minta mundur sehari dengan bunga tambahan). Bisa ditagih lebih awal.
+- **Karakter lebih detail**: iris & kilau mata, kelopak, bulu mata, hidung, bibir, dagu, telinga, kumis tipis & brewok Handoyo, kerah, kancing, saku, ikat pinggang, jam tangan, gelang & bros hijab Naswa, jari tangan, sol sepatu.
+- **Hewan berpasangan & beranak**: Oyen ♂ + Snowy ♀ (kucing putih), Kapi ♂ + Kiki ♀ (capybara). Interaksi "Bermesraan" bisa bikin hamil → lahir 2–3 anak (tumbuh dewasa dalam 4 hari, menyusu & mengikuti induknya). Maksimal 14 hewan.
+- **ART**: Mbak Sri (bersih-bersih), Bi Inah (masak & cuci baju), Pak Darto (kebun & mobil). Datang 06.00–18.00, bisa diliburkan di tombol ART.
+- **Rumah 2 lantai**: tangga di ruang keluarga, lantai 2 = perpustakaan lengkap (15 rak, meja baca lampu hijau, bola dunia). Tombol 🪜 untuk pindah tampilan lantai. 24 buku bisa dibaca (tombol 📚 atau klik rak): kriminologi & forensik, fiksi detektif/kriminal, dan memahami & mencegah bunuh diri (ditulis mengikuti pedoman pemberitaan aman, dengan info layanan SEJIWA 119 ext 8).
+
 ## Kontrol
 - Klik benda = pilih aksi · klik pasangan = interaksi sosial · klik karakter sendiri = aksi HP · klik lantai = jalan
 - Seret = putar kamera · scroll/cubit = zoom · WASD geser · Q/E putar · F ikuti · C mode dinding

@@ -7,7 +7,10 @@ import {
   SKIN_TONES, CLOTH_COLORS, HAIR_COLORS, HAIR_STYLES, SIM_NAMES, fmtRp,
 } from './data.js';
 import { FAMILY_XP, HUMANS } from './state.js';
-import { PET_EMOJI, PET_LABEL } from './pets.js';
+import { PET_EMOJI, PET_LABEL, isBaby } from './pets.js';
+import { SoundFX } from './sound.js';
+import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
+import { STAFF, NPCS } from './people.js';
 const fmtShort = (n) => { const a = Math.abs(n), sg = n < 0 ? '−' : ''; if (a >= 1e9) return `${sg}Rp ${(a / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 })} M`; if (a >= 1e6) return `${sg}Rp ${(a / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`; return fmtRp(n); };
 
 const ICONS = {
@@ -45,7 +48,7 @@ class Sfx {
 
 export class UI {
   constructor(root) {
-    this.root = root; this.sound = new Sfx(); this.keepPlacing = false; this.t = 0; this.tab = 'needs';
+    this.root = root; this.sound = new SoundFX(); window.addEventListener('pointerdown', () => this.sound.ensure(), { passive: true }); this.keepPlacing = false; this.t = 0; this.tab = 'needs';
     this.panelOpen = window.innerWidth > 760; this.buyCat = 'ruang';
     this.chatLog = [];
   }
@@ -75,6 +78,9 @@ export class UI {
         <button data-mode="walls" title="Dinding (C)">🧱<span id="uWallL">Potong</span></button>
         <button data-mode="follow" title="Ikuti karakter (F)">🎯<span>Ikuti</span></button>
         <button data-mode="chat" id="uChatBtn" title="Chat">💬<span>Chat</span></button>
+        <button data-mode="floor" title="Pindah lantai">🪜<span id="uFloorL">Lt 1</span></button>
+        <button data-mode="books" title="Perpustakaan">📚<span>Buku</span></button>
+        <button data-mode="staff" title="Asisten rumah tangga">🧑‍🍳<span>ART</span></button>
         <button data-mode="voice" id="uVoiceBtn" title="Obrolan suara">🎙️<span id="uVoiceL">Suara</span></button>`),
       h('section', 'panel', `
         <div class="queue" id="uQueue"></div>
@@ -100,6 +106,9 @@ export class UI {
       if (m === 'live') this.setBuy(false); if (m === 'buy') this.setBuy(true); if (m === 'walls') this.cycleWalls();
       if (m === 'follow') { this.g.follow = !this.g.follow; if (this.g.follow) this.g.focusSim(this.g.active); this.refresh(); }
       if (m === 'voice') this.voiceToggle();
+      if (m === 'floor') { this.g.followLvl = false; this.g.setView(this.g.viewLvl ? 0 : 1); this.refresh(); }
+      if (m === 'books') this.openLibrary(null);
+      if (m === 'staff') this.openStaff();
       if (m === 'chat') { $('.chat', R).classList.toggle('hidden'); $('#uChatBtn').classList.remove('ping'); if (!$('.chat', R).classList.contains('hidden')) $('#uChatIn').focus(); }
     });
     $('#uTabs', R).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { this.tab = b.dataset.tab; this.panelOpen = true; this.refresh(); } });
@@ -114,12 +123,12 @@ export class UI {
       const b = e.target.closest('[data-sim]'); if (!b) return;
       if (e.target.closest('.auto')) { const s = this.g.hh.sims[b.dataset.sim]; this.g.cmd({ c: 'auto', sim: b.dataset.sim, v: !s.autonomy }); return; }
       if (e.target.closest('.fold')) { this.panelOpen = !this.panelOpen; this.refresh(); return; }
-      if (this.g.mySims.includes(b.dataset.sim)) { if (this.g.active === b.dataset.sim) this.g.focusSim(b.dataset.sim); else this.g.switchSim(b.dataset.sim); }
+      if (this.g.ctrl(b.dataset.sim)) { if (this.g.active === b.dataset.sim) this.g.focusSim(b.dataset.sim); else this.g.switchSim(b.dataset.sim); }
       else this.g.focusSim(b.dataset.sim);
     });
     // label di atas kepala
     this.labels = {};
-    for (const n of Object.keys(this.g.hh.sims)) { const el = h('div', 'lbl', `<div class="say"></div><div class="bub"></div><div class="nm">${n}</div>`); $('.labels', R).append(el); this.labels[n] = el; }
+    for (const n of []) { const el = h('div', 'lbl', `<div class="say"></div><div class="bub"></div><div class="nm">${n}</div>`); $('.labels', R).append(el); this.labels[n] = el; }
     this.buildBuyCats();
   }
 
@@ -131,9 +140,12 @@ export class UI {
   }
   updateLabels() {
     const g = this.g, cam = g.camera, rect = g.renderer.domElement.getBoundingClientRect(); const v = new THREE.Vector3();
-    for (const n of Object.keys(g.hh.sims)) {
-      const s = g.hh.sims[n], el = this.labels[n], M = g.models[n], R = M.root;
-      if (s.hidden) { el.style.display = 'none'; continue; }
+    for (const s of g.actors()) {
+      const n = s.name, M = g.models[n]; if (!M) continue; const R = M.root;
+      let el = this.labels[n];
+      if (!el) { el = h('div', 'lbl' + (s.species === 'npc' || s.species === 'staff' ? ' npc' : ''), `<div class="say"></div><div class="bub"></div><div class="nm">${esc(n)}</div>`); $('.labels', this.root).append(el); this.labels[n] = el; }
+      const inside = s.x > -8 && s.x < 8 && s.z > -6 && s.z < 6;
+      if (s.hidden || !R.visible || ((s.lvl || 0) !== g.viewLvl && inside)) { el.style.display = 'none'; continue; }
       v.set(R.position.x, R.position.y + (M.labelH ? M.labelH + 0.15 : 2.25 * (s.outfit.height || 1) + (s.y > 0.3 ? -0.4 : 0)), R.position.z).project(cam);
       el.classList.toggle('talk', !!(this.voice && ((n === this.voice.meName && this.voice.meLvl > 0.04) || (n === this.voice.peerName && this.voice.peerLvl > 0.04))));
       if (v.z > 1) { el.style.display = 'none'; continue; }
@@ -173,7 +185,7 @@ export class UI {
     const net = $('#uNet');
     if (g.mode === 'solo') net.style.display = 'none';
     else { net.style.display = ''; const on = g.mode === 'guest' ? true : g.peerOnline; net.innerHTML = `<i class="dot ${on ? 'on' : ''}"></i>${g.mode === 'host' ? `Room <b>${esc(g.roomCode || '')}</b>` : 'Terhubung'} · ${on ? 'Berdua' : 'Menunggu pasangan…'}`; }
-    const wl = { cut: 'Potong', down: 'Rendah', up: 'Penuh', roof: 'Atap' }[g.wallMode]; $('#uWallL').textContent = wl;
+    const wl = { cut: 'Potong', down: 'Rendah', up: 'Penuh', roof: 'Atap' }[g.wallMode]; $('#uWallL').textContent = wl; $('#uFloorL').textContent = g.viewLvl ? 'Lt 2' : 'Lt 1';
     for (const b of R.querySelectorAll('.modes button')) {
       const m = b.dataset.mode; b.classList.toggle('on', (m === 'live' && !g.buy) || (m === 'buy' && !!g.buy) || (m === 'follow' && g.follow));
     }
@@ -196,9 +208,9 @@ export class UI {
         ${n === g.active ? `<button class="fold" title="Buka/tutup panel">${this.panelOpen ? '▾' : '▴'}</button>` : ''}
       </div>`;
     }
-    html += '<div class="pets">' + Object.keys(g.hh.sims).filter((n) => g.hh.sims[n].isPet).map((n) => { const s = g.hh.sims[n]; const ml = s.moodLevel();
+    html += '<div class="pets">' + Object.keys(g.hh.sims).filter((n) => g.hh.sims[n].isPet).map((n) => { const s = g.hh.sims[n]; const ml = s.moodLevel(); const tag = (isBaby(g.hh, s) ? '🍼' : '') + (s.pregUntil ? '🤰' : '') + (s.sex === 'f' ? '♀' : s.sex === 'm' ? '♂' : '');
       const act = s.queue[0] ? (s.queue[0].step || s.queue[0].label) : (s.engagedBy ? `sama ${s.engagedBy}` : 'Santai');
-      return `<div class="pchip ${n === g.active ? 'act' : ''}" data-sim="${n}" style="--mc:${ml.color}"><span class="pe">${PET_EMOJI[s.species]}</span><div><b>${n}</b><small>${esc(act)}</small></div>${n === g.active ? `<button class="auto ${s.autonomy ? 'on' : ''}" title="Kehendak bebas">${s.autonomy ? '🤖' : '✋'}</button><button class="fold">${this.panelOpen ? '▾' : '▴'}</button>` : ''}</div>`; }).join('') + '</div>';
+      return `<div class="pchip ${n === g.active ? 'act' : ''}" data-sim="${n}" style="--mc:${ml.color}"><span class="pe">${PET_EMOJI[s.species]}</span><div><b>${n} <i class="tag">${tag}</i></b><small>${esc(act)}</small></div>${n === g.active ? `<button class="auto ${s.autonomy ? 'on' : ''}" title="Kehendak bebas">${s.autonomy ? '🤖' : '✋'}</button><button class="fold">${this.panelOpen ? '▾' : '▴'}</button>` : ''}</div>`; }).join('') + '</div>';
     if (this._pH !== html) { this._pH = html; $('#uPort').innerHTML = html; }
   }
   renderQueue() {
@@ -232,6 +244,8 @@ export class UI {
         html = `<div class="rel"><div class="relrow"><b>Handoyo</b><span>💞</span><b>Naswa</b></div>
           <div class="relbar"><i style="left:${(v + 100) / 2}%"></i></div><div class="rellab"><span>Renggang</span><b>${rl.label} (${Math.round(v)})</b><span>Sehati</span></div>
           <p class="muted">Klik pasangan untuk berinteraksi. Interaksi romantis terbuka seiring hubungan membaik; kalau mood pasangan jelek bisa ditolak.</p>
+          <div class="nb"><div class="ctitle">Tetangga & ART</div>${Object.keys({ ...NPCS, ...STAFF }).map((k) => `<div class="finrow"><span>${k} <small class="muted">${esc((NPCS[k] || STAFF[k]).trait || STAFF[k].role)}</small></span><b>${Math.round((W.nrel || {})[k] || 0)}</b></div>`).join('')}
+          ${W.loan ? `<p class="small">🧾 Bang Jefri berutang ${fmtRp(W.loan.amount)} ke ${W.loan.lender}, bunga ${Math.round(W.loan.rate * 100)}%, jatuh tempo hari ke-${W.loan.due + 1}.</p>` : ''}</div>
           <div class="unlocks">${REL_LEVELS.slice().reverse().map((l) => `<span class="${v >= l.min ? 'on' : ''}">${l.label}</span>`).join('')}</div></div>`; break; }
       case 'goals': {
         const fl = hh.famLevel();
@@ -239,8 +253,9 @@ export class UI {
           <p class="muted small">Tujuan baru tiap tengah malam. Tiap tujuan +25 poin keluarga, semua selesai +Rp 100.000.</p>
           <div class="fambox"><b>Objektif utama:</b> rawat rumah & jadi <em>${FAMILY_LEVELS[5]}</em>.<br>Sekarang: Lv ${fl + 1} ${FAMILY_LEVELS[fl]} · ${W.fam}${FAMILY_XP[fl + 1] ? ' / ' + FAMILY_XP[fl + 1] : ''} poin</div></div>`; break; }
       case 'bond': {
+        const info = `${s.sex === 'f' ? '♀ Betina' : '♂ Jantan'} · ${isBaby(hh, s) ? 'Bayi 🍼 (ibu: ' + (s.mom || '-') + ')' : 'Dewasa'}${s.pregUntil ? ' · 🤰 hamil, lahiran ±' + Math.max(1, Math.ceil((s.pregUntil - W.time) / 60)) + ' jam lagi' : ''}`;
         const bar2 = (v) => `<div class="relbar"><i style="left:${(v + 100) / 2}%"></i></div>`;
-        html = `<div class="rel"><div class="ctitle">${PET_LABEL[s.species]} · ${g.active}</div>
+        html = `<div class="rel"><div class="ctitle">${PET_LABEL[s.species]} · ${g.active}</div><p class="small">${info}</p>
           ${HUMANS.map((n) => `<div class="need"><span>💗 Ikatan dengan ${n} (${Math.round(s.bond[n] || 0)})</span>${bar2(s.bond[n] || 0)}</div>`).join('')}
           <div class="need"><span>🤝 Persahabatan Oyen & Kapi (${Math.round(W.petBond || 0)})</span>${bar2(W.petBond || 0)}</div>
           <p class="muted small">${s.species === 'cat' ? 'Klik benda: tiang garukan, akuarium, sofa, kasur, kotak pasir. Klik Kapi untuk naik ke punggungnya! Klik dirimu untuk zoomies, jilat bulu, atau jatuhkan gelas 😼' : 'Klik kolam untuk berendam, kebun untuk nyemil, rumah capybara untuk tidur. Klik dirimu untuk chill pakai jeruk di kepala 🍊'}</p></div>`; break; }
@@ -289,7 +304,7 @@ export class UI {
     const w = m.offsetWidth, hh = m.offsetHeight;
     m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + 'px';
     m.style.top = Math.max(60, Math.min(window.innerHeight - hh - 8, y - 20)) + 'px';
-    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; this.g.cmd({ ...items[+b.dataset.i].cmd }); this.closeMenu(); };
+    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.ui === 'library') { this.closeMenu(); this.openLibrary(it.cmd); return; } this.g.cmd({ ...it.cmd }); this.closeMenu(); };
   }
   closeMenu() { const m = $('.ctx', this.root); if (m) m.classList.add('hidden'); }
   showObjTools(o, x, y) {
@@ -329,6 +344,51 @@ export class UI {
   // ---------- dinding ----------
   cycleWalls() { const order = ['cut', 'down', 'up', 'roof']; const i = order.indexOf(this.g.wallMode); this.g.setWallMode(order[(i + 1) % 4]); this.refresh(); }
 
+  // ---------- perpustakaan ----------
+  openLibrary(cmd, shelf = 'krim') {
+    const list = BOOKS.filter((b) => b.shelf === shelf);
+    const m = this.modal(`<h2>📚 Perpustakaan Lantai 2</h2>
+      <p class="muted small">${BOOKS.length} buku bisa dibaca. ${cmd ? `Pilih buku — ${esc(this.g.active)} akan duduk membacanya.` : 'Baca langsung di sini, atau suruh karakter baca lewat rak buku di lantai 2.'}</p>
+      <nav class="shelves">${SHELVES.map((sh) => `<button data-sh="${sh.id}" class="${sh.id === shelf ? 'on' : ''}" style="--bc:${sh.color}">${sh.label}</button>`).join('')}</nav>
+      <div class="booklist">${list.map((b) => `<button class="book" data-b="${b.id}" style="--bc:${SHELVES.find((x) => x.id === b.shelf).color}"><i></i><span><b>${esc(b.title)}</b><small>${esc(b.author)}</small></span></button>`).join('')}</div>
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
+    m.querySelector('.shelves').onclick = (e) => { const b = e.target.closest('[data-sh]'); if (b) this.openLibrary(cmd, b.dataset.sh); };
+    m.querySelector('.booklist').onclick = (e) => { const b = e.target.closest('[data-b]'); if (!b) return; if (cmd) this.g.cmd({ ...cmd, book: b.dataset.b }); this.openBook(b.dataset.b, 0, cmd); };
+  }
+  openBook(id, page = 0, cmd) {
+    const b = bookById(id); const col = SHELVES.find((x) => x.id === b.shelf).color; const n = b.pages.length;
+    const m = this.modal(`<div class="reader" style="--bc:${col}"><div class="rhead"><div class="cover"><b>${esc(b.title)}</b><small>${esc(b.author)}</small></div></div>
+      <div class="rpage"><p>${esc(b.pages[page])}</p>${b.help && page === n - 1 ? `<div class="helpbox">💚 ${esc(HELP_FOOTER)}</div>` : ''}</div>
+      <div class="rnav"><button class="btn ghost sm" data-p="-1" ${page === 0 ? 'disabled' : ''}>← Sebelumnya</button><span>Halaman ${page + 1} / ${n}</span><button class="btn sm" data-p="1" ${page === n - 1 ? 'disabled' : ''}>Berikutnya →</button></div>
+      <div class="mbtns row"><button class="btn ghost sm" data-back>Kembali ke rak</button><button class="btn ghost sm" data-close>Tutup</button></div></div>`, 'wide');
+    this.sound.play('page');
+    m.querySelector('.rnav').onclick = (e) => { const x = e.target.closest('[data-p]'); if (x && !x.disabled) this.openBook(id, page + +x.dataset.p, cmd); };
+    m.querySelector('[data-back]').onclick = () => this.openLibrary(null, b.shelf);
+  }
+  // ---------- pinjaman Bang Jefri ----------
+  loanModal(o) {
+    if (!o) return; const g = this.g; const me = g.hh.sims[g.active] && g.hh.sims[g.active].species === 'human' ? g.active : g.mySims.find((n) => HUMANS.includes(n));
+    const interest = Math.round(o.amount * o.rate / 1000) * 1000;
+    const m = this.modal(`<h2>🧾 Bang Jefri datang lagi…</h2>
+      <p>"Bang, Mbak… maaf ganggu. Boleh pinjam <b>${fmtRp(o.amount)}</b> dulu? ${o.days} hari lagi aku balikin, plus bunga <b>${Math.round(o.rate * 100)}%</b> (${fmtRp(interest)}). Janji!"</p>
+      <p class="muted small">Uang diambil dari dompet ${esc(me)}. Bang Jefri selalu bayar — kadang cuma telat sehari.</p>
+      <div class="mbtns row"><button class="btn ghost" id="lnNo">Tolak halus</button><button class="btn" id="lnYes">Pinjamkan</button></div>`);
+    m.dataset.loan = '1';
+    m.querySelector('#lnYes').onclick = () => { g.cmd({ c: 'loan', accept: true, sim: me }); this.closeModal(); };
+    m.querySelector('#lnNo').onclick = () => { g.cmd({ c: 'loan', accept: false, sim: me }); this.closeModal(); };
+  }
+  closeLoan() { const m = $('.modal', this.root); if (m && m.dataset.loan) { delete m.dataset.loan; this.closeModal(); } }
+  // ---------- ART ----------
+  openStaff() {
+    const g = this.g, W = g.hh.world;
+    const st = (n) => { const s = g.hh.others[n]; if (!W.staffOn[n]) return 'Libur'; if (!s || s.hidden) return 'Belum datang / sudah pulang'; return s.queue[0] ? (s.queue[0].stepLabel || s.queue[0].label) : 'Siaga'; };
+    const m = this.modal(`<h2>🧑‍🍳 Asisten Rumah Tangga</h2><p class="muted small">Bekerja 06.00–18.00. Gaji harian dibayar saat pulang dari dompet terbanyak.</p>
+      <div class="staff">${Object.entries(STAFF).map(([n, d]) => `<div class="stf"><div><b>${n}</b><small>${d.role} · ${fmtRp(d.wage)}/hari</small><em>${esc(st(n))}</em></div>
+        <button class="btn sm ${W.staffOn[n] ? 'ghost' : ''}" data-s="${n}">${W.staffOn[n] ? 'Liburkan' : 'Pekerjakan'}</button></div>`).join('')}</div>
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`);
+    m.querySelector('.staff').onclick = (e) => { const b = e.target.closest('[data-s]'); if (!b) return; g.cmd({ c: 'staff', name: b.dataset.s, on: !W.staffOn[b.dataset.s] }); setTimeout(() => this.openStaff(), 150); };
+  }
+
   // ---------- obrolan suara ----------
   async voiceToggle() {
     const g = this.g, net = g.net; if (!net || g.mode === 'solo') return;
@@ -365,7 +425,7 @@ export class UI {
 
   // ---------- modal ----------
   modal(html, cls = '') {
-    const m = $('.modal', this.root); m.className = 'modal ' + cls; m.innerHTML = `<div class="mcard">${html}</div>`;
+    const m = $('.modal', this.root); delete m.dataset.loan; m.className = 'modal ' + cls; m.innerHTML = `<div class="mcard">${html}</div>`;
     m.onclick = (e) => { if (e.target === m || e.target.closest('[data-close]')) this.closeModal(); };
     return m;
   }
@@ -377,6 +437,7 @@ export class UI {
         ${g.isHost ? '<button class="btn" data-a="save">💾 Simpan permainan</button>' : ''}
         <button class="btn" data-a="help">❓ Cara main</button>
         <button class="btn" data-a="snd">${this.sound.on ? '🔊 Suara: nyala' : '🔇 Suara: mati'}</button>
+        <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
         <button class="btn" data-a="gfx">${g.quality.low ? '🖥️ Grafis: ringan' : '🖥️ Grafis: tinggi'}</button>
         <button class="btn ghost" data-a="exit">🚪 Keluar ke menu utama</button>
         <button class="btn ghost" data-close>Tutup</button></div>`);
@@ -384,7 +445,8 @@ export class UI {
       const a = e.target.closest('[data-a]'); if (!a) return;
       if (a.dataset.a === 'save') { g.save(); this.closeModal(); }
       if (a.dataset.a === 'help') this.openHelp();
-      if (a.dataset.a === 'snd') { this.sound.on = !this.sound.on; this.openMenu(); }
+      if (a.dataset.a === 'snd') { this.sound.on = !this.sound.on; if (!this.sound.on) this.sound.stopAll(); this.openMenu(); }
+      if (a.dataset.a === 'vol') { const v = [0.3, 0.55, 0.8, 1][([0.3, 0.55, 0.8, 1].indexOf(this.sound.vol) + 1) % 4]; this.sound.setVolume(v); this.openMenu(); }
       if (a.dataset.a === 'gfx') { g.setQuality(!g.quality.low); this.openMenu(); }
       if (a.dataset.a === 'exit') { if (g.isHost) g.save(); location.reload(); }
     };

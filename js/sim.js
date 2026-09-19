@@ -8,10 +8,25 @@ const G = {
 function std(color, rough = 0.8, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, ...extra });
 }
+function addTo(p, m) { p.add(m); return m; }
 function mesh(geo, mat, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; return m;
 }
 
+let BATIK = null;
+function batikTex() {
+  if (BATIK) return BATIK;
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#7a4a22'; g.fillRect(0, 0, 128, 128);
+  for (let y = 0; y < 128; y += 32) for (let x = 0; x < 128; x += 32) {
+    const ox = (y / 32) % 2 ? 16 : 0; g.strokeStyle = '#e8c98a'; g.lineWidth = 2;
+    g.beginPath(); g.ellipse(x + ox + 16, y + 16, 11, 6, Math.PI / 4, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.ellipse(x + ox + 16, y + 16, 11, 6, -Math.PI / 4, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#2a1a10'; g.beginPath(); g.arc(x + ox + 16, y + 16, 3, 0, Math.PI * 2); g.fill();
+  }
+  BATIK = new THREE.CanvasTexture(c); BATIK.colorSpace = THREE.SRGBColorSpace; BATIK.wrapS = BATIK.wrapT = THREE.RepeatWrapping; BATIK.repeat.set(2, 2);
+  return BATIK;
+}
 export class SimModel {
   constructor(name, outfit) {
     this.name = name;
@@ -42,14 +57,14 @@ export class SimModel {
     P.scale.setScalar(H);
 
     const pelvis = new THREE.Group(); pelvis.position.y = 0.9; P.add(pelvis); this.pelvis = pelvis;
-    pelvis.add(mesh(new THREE.SphereGeometry(0.16, 14, 10), pants, 0, 0, 0)).scale.set(1.05, 0.7, 0.8);
+    addTo(pelvis, mesh(new THREE.SphereGeometry(0.16, 14, 10), pants, 0, 0, 0)).scale.set(1.05, 0.7, 0.8);
 
     const legs = [];
     for (const side of [-1, 1]) {
       const thigh = new THREE.Group(); thigh.position.set(side * 0.095, -0.02, 0); pelvis.add(thigh);
-      thigh.add(mesh(G.cyl(0.078, 0.064, 0.45), o.dress ? std(o.pants, 0.9) : pants, 0, -0.225, 0));
+      addTo(thigh, mesh(G.cyl(0.078, 0.064, 0.45), o.dress ? std(o.pants, 0.9) : pants, 0, -0.225, 0));
       const knee = new THREE.Group(); knee.position.y = -0.45; thigh.add(knee);
-      knee.add(mesh(G.cyl(0.062, 0.05, 0.42), o.dress ? skin : pants, 0, -0.21, 0));
+      addTo(knee, mesh(G.cyl(0.062, 0.05, 0.42), o.dress ? skin : pants, 0, -0.21, 0));
       const foot = mesh(new THREE.BoxGeometry(0.1, 0.07, 0.24), shoe, 0, -0.44, 0.05); knee.add(foot);
       legs.push({ thigh, knee });
     }
@@ -63,17 +78,17 @@ export class SimModel {
       skirt.scale.z = 0.85; pelvis.add(skirt); this.skirt = skirt;
     } else this.skirt = null;
     // kerah / leher
-    spine.add(mesh(G.cyl(0.05, 0.055, 0.1), skin, 0, 0.6, 0));
+    addTo(spine, mesh(G.cyl(0.05, 0.055, 0.1), skin, 0, 0.6, 0));
 
     const arms = [];
     for (const side of [-1, 1]) {
       const sh = new THREE.Group(); sh.position.set(side * 0.215, 0.5, 0); spine.add(sh);
-      sh.add(mesh(new THREE.SphereGeometry(0.065, 10, 8), shirt, 0, 0, 0));
-      sh.add(mesh(G.cyl(0.058, 0.05, 0.3), shirt, 0, -0.15, 0));
+      addTo(sh, mesh(new THREE.SphereGeometry(0.065, 10, 8), shirt, 0, 0, 0));
+      addTo(sh, mesh(G.cyl(0.058, 0.05, 0.3), shirt, 0, -0.15, 0));
       const el = new THREE.Group(); el.position.y = -0.3; sh.add(el);
-      el.add(mesh(G.cyl(0.045, 0.038, 0.27), skin, 0, -0.135, 0));
+      addTo(el, mesh(G.cyl(0.045, 0.038, 0.27), skin, 0, -0.135, 0));
       const hand = new THREE.Group(); hand.position.y = -0.29; el.add(hand);
-      hand.add(mesh(new THREE.SphereGeometry(0.048, 10, 8), skin));
+      addTo(hand, mesh(new THREE.SphereGeometry(0.048, 10, 8), skin));
       arms.push({ sh, el, hand });
     }
     this.arms = arms;
@@ -82,16 +97,16 @@ export class SimModel {
     const head = new THREE.Group(); head.position.y = 0.13; neck.add(head); this.head = head;
     const skull = mesh(new THREE.SphereGeometry(0.118, 20, 16), skin); skull.scale.set(0.95, 1.08, 1); head.add(skull);
     // telinga
-    for (const s of [-1, 1]) head.add(mesh(new THREE.SphereGeometry(0.028, 8, 6), skin, s * 0.112, 0, 0)).scale.set(0.5, 1, 0.8);
+    for (const s of [-1, 1]) addTo(head, mesh(new THREE.SphereGeometry(0.028, 8, 6), skin, s * 0.112, 0, 0)).scale.set(0.5, 1, 0.8);
     // wajah
     for (const s of [-1, 1]) {
-      head.add(mesh(new THREE.SphereGeometry(0.022, 10, 8), white, s * 0.043, 0.012, 0.1)).scale.set(1, 0.8, 0.5);
-      head.add(mesh(new THREE.SphereGeometry(0.012, 8, 6), dark, s * 0.043, 0.012, 0.112));
-      head.add(mesh(new THREE.BoxGeometry(0.045, 0.009, 0.01), hairM, s * 0.045, 0.048, 0.106)).rotation.z = s * -0.12;
+      addTo(head, mesh(new THREE.SphereGeometry(0.022, 10, 8), white, s * 0.043, 0.012, 0.1)).scale.set(1, 0.8, 0.5);
+      addTo(head, mesh(new THREE.SphereGeometry(0.012, 8, 6), dark, s * 0.043, 0.012, 0.112));
+      addTo(head, mesh(new THREE.BoxGeometry(0.045, 0.009, 0.01), hairM, s * 0.045, 0.048, 0.106)).rotation.z = s * -0.12;
     }
-    head.add(mesh(new THREE.SphereGeometry(0.016, 8, 6), skin, 0, -0.018, 0.118));
+    addTo(head, mesh(new THREE.SphereGeometry(0.016, 8, 6), skin, 0, -0.018, 0.118));
     const mouth = mesh(new THREE.BoxGeometry(0.045, 0.01, 0.01), lip, 0, -0.058, 0.106); head.add(mouth); this.mouth = mouth;
-    if (o.dress) for (const s of [-1, 1]) head.add(mesh(new THREE.CircleGeometry(0.02, 12), new THREE.MeshBasicMaterial({ color: 0xe88a8a, transparent: true, opacity: 0.35 }), s * 0.07, -0.03, 0.098));
+    if (o.dress) for (const s of [-1, 1]) addTo(head, mesh(new THREE.CircleGeometry(0.02, 12), new THREE.MeshBasicMaterial({ color: 0xe88a8a, transparent: true, opacity: 0.35 }), s * 0.07, -0.03, 0.098));
 
     // rambut
     const hs = o.hairStyle;
@@ -100,26 +115,91 @@ export class SimModel {
       const cap = mesh(new THREE.SphereGeometry(0.135, 20, 16, 0, PI * 2, 0, PI * 0.62), hijab, 0, 0.005, -0.005); cap.scale.set(1, 1.1, 1.05); head.add(cap);
       const drape = mesh(new THREE.CylinderGeometry(0.13, 0.25, 0.3, 20, 1, true, PI * 0.25, PI * 1.5), std(hijab.color, 0.9, { side: THREE.DoubleSide }), 0, -0.17, -0.01);
       drape.rotation.y = PI; head.add(drape);
-      head.add(mesh(new THREE.TorusGeometry(0.105, 0.02, 8, 24, PI), hijab, 0, -0.01, 0.02)).rotation.set(0, 0, PI);
+      addTo(head, mesh(new THREE.TorusGeometry(0.105, 0.02, 8, 24, PI), hijab, 0, -0.01, 0.02)).rotation.set(0, 0, PI);
     } else {
       const cap = mesh(new THREE.SphereGeometry(0.126, 20, 16, 0, PI * 2, 0, PI * 0.5), hairM, 0, 0.012, -0.008); cap.scale.set(1, 1.05, 1.06); head.add(cap);
       if (hs === 'short' || hs === 'curly') {
         const fr = mesh(new THREE.BoxGeometry(0.2, 0.05, 0.06), hairM, 0, 0.08, 0.075); fr.rotation.x = -0.3; head.add(fr);
-        for (const s of [-1, 1]) head.add(mesh(new THREE.BoxGeometry(0.03, 0.08, 0.1), hairM, s * 0.112, 0.03, -0.02));
-        head.add(mesh(new THREE.SphereGeometry(0.12, 14, 10), hairM, 0, 0.02, -0.035)).scale.set(0.98, 0.85, 0.9);
+        for (const s of [-1, 1]) addTo(head, mesh(new THREE.BoxGeometry(0.03, 0.08, 0.1), hairM, s * 0.112, 0.03, -0.02));
+        addTo(head, mesh(new THREE.SphereGeometry(0.12, 14, 10), hairM, 0, 0.02, -0.035)).scale.set(0.98, 0.85, 0.9);
         if (hs === 'curly') for (let i = 0; i < 14; i++) {
-          const a = (i / 14) * PI * 2; head.add(mesh(new THREE.SphereGeometry(0.035, 8, 6), hairM, Math.cos(a) * 0.1, 0.09 + Math.sin(i) * 0.02, Math.sin(a) * 0.1 - 0.01));
+          const a = (i / 14) * PI * 2; addTo(head, mesh(new THREE.SphereGeometry(0.035, 8, 6), hairM, Math.cos(a) * 0.1, 0.09 + Math.sin(i) * 0.02, Math.sin(a) * 0.1 - 0.01));
         }
       } else {
         const back = mesh(new THREE.BoxGeometry(0.25, hs === 'bun' ? 0.14 : 0.36, 0.08), hairM, 0, hs === 'bun' ? -0.01 : -0.11, -0.085);
         head.add(back);
         const fringe = mesh(new THREE.SphereGeometry(0.12, 16, 10, PI * 0.1, PI * 0.8, 0, PI * 0.35), hairM, 0, 0.02, 0.012); fringe.rotation.x = 0.15; head.add(fringe);
-        if (hs === 'long') for (const s of [-1, 1]) head.add(mesh(new THREE.BoxGeometry(0.05, 0.3, 0.1), hairM, s * 0.11, -0.09, -0.01));
-        if (hs === 'bun') head.add(mesh(new THREE.SphereGeometry(0.07, 12, 10), hairM, 0, 0.1, -0.12));
+        if (hs === 'long') for (const s of [-1, 1]) addTo(head, mesh(new THREE.BoxGeometry(0.05, 0.3, 0.1), hairM, s * 0.11, -0.09, -0.01));
+        if (hs === 'bun') addTo(head, mesh(new THREE.SphereGeometry(0.07, 12, 10), hairM, 0, 0.1, -0.12));
       }
     }
     this.propAnchor = arms[1].hand;
     this.prop = null; this.propName = null;
+    this.detail(o, { skin, shirt, pants, hairM, shoe, white, dark, lip });
+  }
+
+  // ---------- detail tambahan: wajah, pakaian, tangan, aksesori ----------
+  detail(o, M) {
+    const head = this.head, spine = this.spine, female = !!o.dress;
+    const gold = std('#d4ae4a', 0.3, { metalness: 0.85 }), metal = std('#c9ced4', 0.25, { metalness: 0.9 });
+    // mata: iris, kilau, bulu mata
+    for (const sd of [-1, 1]) {
+      addTo(head, mesh(new THREE.SphereGeometry(0.0138, 12, 10), std('#4a2e1a', 0.25), sd * 0.043, 0.012, 0.1098)).scale.set(1, 1, 0.45);
+      addTo(head, mesh(new THREE.SphereGeometry(0.0042, 6, 5), new THREE.MeshBasicMaterial({ color: 0xffffff }), sd * 0.0395, 0.0175, 0.1245));
+      const lid = mesh(new THREE.SphereGeometry(0.0232, 12, 8, 0, PI * 2, 0, PI * 0.42), M.skin, sd * 0.043, 0.0135, 0.099); lid.rotation.x = 0.35; lid.scale.set(1.02, 0.95, 0.55); head.add(lid);
+      if (female) { const lash = mesh(new THREE.BoxGeometry(0.036, 0.004, 0.012), M.dark, sd * 0.045, 0.028, 0.109); lash.rotation.set(-0.5, 0, sd * -0.18); head.add(lash); }
+    }
+    // hidung & bibir & dagu
+    const br = mesh(new THREE.BoxGeometry(0.018, 0.048, 0.022), M.skin, 0, 0.004, 0.113); br.rotation.x = -0.22; head.add(br);
+    for (const sd of [-1, 1]) addTo(head, mesh(new THREE.SphereGeometry(0.0055, 6, 5), M.dark, sd * 0.009, -0.026, 0.127));
+    addTo(head, mesh(new THREE.SphereGeometry(0.02, 10, 8), M.lip, 0, -0.066, 0.1)).scale.set(1.25, 0.42, 0.55);
+    addTo(head, mesh(new THREE.SphereGeometry(0.052, 14, 10), M.skin, 0, -0.078, 0.062)).scale.set(1, 0.72, 0.82);
+    for (const sd of [-1, 1]) { const ear = mesh(new THREE.TorusGeometry(0.018, 0.005, 6, 12), M.skin, sd * 0.119, 0.0, 0.004); ear.rotation.y = PI / 2; head.add(ear); }
+    if (!female) {
+      const stub = mesh(new THREE.SphereGeometry(0.1215, 22, 12, PI * 0.12, PI * 0.76, PI * 0.56, PI * 0.3), new THREE.MeshStandardMaterial({ color: M.hairM.color, transparent: true, opacity: 0.22, roughness: 1, depthWrite: false }));
+      stub.scale.set(0.95, 1.08, 1); head.add(stub);
+      if (o.hairStyle !== 'hijab' && !o.noMoustache) addTo(head, mesh(new THREE.BoxGeometry(0.05, 0.009, 0.012), M.hairM, 0, -0.045, 0.113)).rotation.x = -0.2;
+    }
+    if (o.peci) { const pc = mesh(new THREE.CylinderGeometry(0.117, 0.121, 0.085, 24), std('#15151a', 0.95), 0, 0.1, -0.008); pc.rotation.x = -0.12; head.add(pc); }
+    if (o.hairStyle === 'hijab') addTo(head, mesh(new THREE.SphereGeometry(0.011, 8, 6), gold, 0.0, -0.118, 0.105));
+    // kerah, kancing, saku
+    if (!female) {
+      for (const sd of [-1, 1]) { const col = mesh(new THREE.BoxGeometry(0.075, 0.012, 0.05), M.shirt, sd * 0.04, 0.585, 0.075); col.rotation.set(0.5, sd * -0.5, sd * 0.35); spine.add(col); }
+      for (let i = 0; i < 4; i++) addTo(spine, mesh(new THREE.SphereGeometry(0.0075, 6, 5), std('#f2efe6', 0.4), 0, 0.5 - i * 0.1, 0.113));
+      addTo(spine, mesh(new THREE.BoxGeometry(0.004, 0.42, 0.004), std('#000000', 1, { transparent: true, opacity: 0.25 }), 0.008, 0.3, 0.113));
+      addTo(spine, mesh(new THREE.BoxGeometry(0.07, 0.075, 0.006), M.shirt, -0.075, 0.42, 0.108));
+      // ikat pinggang
+      const belt = mesh(new THREE.CylinderGeometry(0.168, 0.168, 0.045, 24, 1, true), std('#3a2616', 0.4, { side: THREE.DoubleSide }), 0, 0.055, 0); belt.scale.z = 0.8; this.pelvis.add(belt);
+      addTo(this.pelvis, mesh(new THREE.BoxGeometry(0.045, 0.035, 0.012), metal, 0, 0.055, 0.137));
+      // jam tangan
+      const wr = this.arms[0].el; addTo(wr, mesh(G.cyl(0.043, 0.043, 0.022), std('#1f1f1f', 0.4), 0, -0.245, 0));
+      addTo(wr, mesh(G.cyl(0.02, 0.02, 0.01), metal, 0, -0.245, 0.04)).rotation.x = PI / 2;
+    } else {
+      addTo(spine, mesh(new THREE.TorusGeometry(0.075, 0.007, 6, 18, PI), gold, 0, 0.56, 0.06)).rotation.set(PI * 0.55, 0, PI);
+      addTo(this.arms[1].el, mesh(new THREE.TorusGeometry(0.041, 0.005, 6, 16), gold, 0, -0.245, 0)).rotation.x = PI / 2;
+    }
+    // jari tangan
+    for (const a of this.arms) {
+      for (let i = 0; i < 4; i++) { const f = mesh(new THREE.CapsuleGeometry(0.0095, 0.03, 3, 6), M.skin, -0.027 + i * 0.018, -0.052, 0.008); f.rotation.x = 0.15; a.hand.add(f); }
+      const th = mesh(new THREE.CapsuleGeometry(0.011, 0.026, 3, 6), M.skin, 0.0, -0.02, 0.04); th.rotation.x = 1.0; a.hand.add(th);
+    }
+    // sol sepatu
+    for (const l of this.legs) {
+      addTo(l.knee, mesh(new THREE.BoxGeometry(0.108, 0.022, 0.255), std(female ? '#6a3a2e' : '#e8e2d6', 0.7), 0, -0.483, 0.05));
+      addTo(l.knee, mesh(new THREE.SphereGeometry(0.052, 10, 8), M.shoe, 0, -0.455, 0.15)).scale.set(1, 0.6, 0.8);
+    }
+    // batik
+    if (o.batik) { M.shirt.map = batikTex(); M.shirt.color.set('#ffffff'); M.shirt.needsUpdate = true; }
+    // badan gemuk (tetangga)
+    const w = o.wide || 1;
+    if (w > 1) {
+      const torso = spine.children[0]; torso.scale.x *= w; torso.scale.z *= w * 1.12;
+      addTo(spine, mesh(new THREE.SphereGeometry(0.2, 18, 14), M.shirt, 0, 0.2, 0.05)).scale.set(w * 0.95, 0.95, w * 1.05);
+      this.pelvis.children[0].scale.x *= w; this.pelvis.children[0].scale.z *= w;
+      for (const l of this.legs) { l.thigh.scale.set(1 + (w - 1) * 0.8, 1, 1 + (w - 1) * 0.8); l.thigh.position.x *= 1 + (w - 1) * 0.5; }
+      for (const a of this.arms) { a.sh.position.x *= 1 + (w - 1) * 0.55; a.sh.scale.set(1 + (w - 1) * 0.5, 1, 1 + (w - 1) * 0.5); }
+      addTo(head, mesh(new THREE.SphereGeometry(0.06, 12, 10), M.skin, 0, -0.07, 0.03)).scale.set(1.6, 0.8, 1.2);
+    }
   }
 
   setOutfit(o) { const prop = this.propName; this.build(o); this.propName = null; this.setProp(prop); }
