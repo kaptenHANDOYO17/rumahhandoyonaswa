@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1d26">
+<title>Rumah Handoyo & Naswa — Griya Asri</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }</script>
+<script src="./vendor/peerjs.min.js"></script>
+</head>
+<body>
+<div id="view"></div>
+<div id="hud"></div>
+<audio id="voiceOut" autoplay playsinline></audio>
+
+<div id="lobby">
+  <div class="lbg"></div>
+  <div class="lcard">
+    <div class="lgem"></div>
+    <p class="lkick">Perumahan Griya Asri · Blok C-7</p>
+    <h1>Rumah <span>Handoyo</span> &amp; <span>Naswa</span></h1>
+    <p class="lsub">Simulasi rumah tangga 3D. Masak, beberes, kerja, bayar tagihan, dan jaga kemesraan — sendiri atau berdua dari HP masing-masing.</p>
+
+    <div class="lpane" data-p="main">
+      <button class="btn big" id="lContinue" hidden>▶ Lanjutkan <small></small></button>
+      <button class="btn big" id="lSolo">🏡 Main sendiri <small>kendalikan dua-duanya</small></button>
+      <button class="btn big capy" id="lCapy">🦫 Main jadi capybara <small>jadi Kapi, berendam & chill di rumah</small></button>
+      <div class="lrow">
+        <button class="btn big alt" data-pane="host">💞 Buat room berdua</button>
+        <button class="btn big alt" data-pane="join">🔑 Gabung room</button>
+      </div>
+      <button class="lnk" id="lNew">Hapus simpanan & mulai dari awal</button>
+    </div>
+
+    <div class="lpane" data-p="host" hidden>
+      <p class="lq">Kamu mau jadi siapa?</p>
+      <div class="lpick">
+        <button data-pick="Handoyo" class="on"><i class="av h"></i>Handoyo<small>Suami · Perbankan</small></button>
+        <button data-pick="Naswa"><i class="av n"></i>Naswa<small>Istri · Desain grafis</small></button>
+      </div>
+      <label class="chk"><input type="checkbox" id="lHostSave" checked> pakai permainan tersimpan (kalau ada)</label>
+      <button class="btn big" id="lHost">Buat room</button>
+      <button class="lnk" data-pane="main">← kembali</button>
+    </div>
+
+    <div class="lpane" data-p="join" hidden>
+      <p class="lq">Masukkan kode dari pasanganmu</p>
+      <input id="lCode" class="codein" maxlength="6" placeholder="ABCDE" autocomplete="off">
+      <button class="btn big" id="lJoin">Gabung</button>
+      <button class="lnk" data-pane="main">← kembali</button>
+    </div>
+    <p id="lStatus" class="lstatus"></p>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
