@@ -215,6 +215,7 @@ export function installLife(hh) {
     const q = d.q != null ? d.q : paintingQuality(hh, d.stats || { strokes: 20, colors: 4, secs: 60, coverage: 0.5 });
     const p = { id: (hh.gallery.reduce((a, x) => Math.max(a, x.id), 0) + 1), title: String(d.title || 'Tanpa Judul').slice(0, 60), by: sim.name, img: d.img, q, day: Math.floor(W.time / 1440), status: 'studio', price: 0, offers: [] };
     p.fair = fairPrice(hh, p); p.price = p.fair;
+    hh.easter && hh.easter('lukisan', { p });
     hh.gallery.unshift(p); if (hh.gallery.length > 40) hh.gallery.pop();
     if (W.art.boost > 0) W.art.boost--;
     sim.xp('kreatif', 25 + q / 2); sim.mood('bermusik');

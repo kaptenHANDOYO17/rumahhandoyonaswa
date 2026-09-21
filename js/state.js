@@ -19,6 +19,8 @@ import './books2.js';
 import './books3.js';
 import './books4.js';
 import './padang.js';
+import { installEaster } from './easter.js';
+import { rushReward } from './minigame.js';
 import { people2Minute, guestDecision, ambientChatter } from './people2.js';
 import { installLife } from './life.js';
 import { installSeasons } from './seasons.js';
@@ -365,6 +367,8 @@ export class Household {
       case 'act': return this.queueAct(sim, c.key, c.objId, c.book ? { book: bookById(c.book) } : {});
       case 'loan': return loanDecision(this, c);
       case 'unstuck': return this.unstuck(sim);
+      case 'egg': return this.easter && this.easter(c.t, { ...(c.d || {}), sim });
+      case 'rush': return rushReward(this, { ...c, sim: c.sim });
       case 'season': { const L = ['salju', 'hujan', 'panas', 'gugur'].includes(c.lock) ? c.lock : null; this.world.seasonLock = L; this.world.weather = 'cerah'; this.world.weatherLeft = 0; this.toast(L ? `🔒 Musim dikunci: ${L}` : '🔄 Musim kembali mengikuti kalender', 'info'); return; }
       case 'call': return this.callService && this.callService(c.svc, c.reason);
       case 'visitN': return this.visitNeighbor(sim, c.host);
@@ -395,7 +399,7 @@ export class Household {
         else this.toast('Pak Harjo: "Nggih, besok-besok saja nggak papa."', 'info'); return; }
       case 'move': return this.moveObj(c.id, c.x, c.z, c.rot, c.lvl || 0);
       case 'sell': this._seller = c.sim; return this.sell(c.id);
-      case 'say': if (sim) { sim.say = { text: String(c.text).slice(0, 120), until: Date.now() + 6000 }; this.hooks.chat && this.hooks.chat(sim.name, sim.say.text); } return;
+      case 'say': if (sim) { this.easter && this.easter('chat', { text: c.text, sim: sim.name }); sim.say = { text: String(c.text).slice(0, 120), until: Date.now() + 6000 }; this.hooks.chat && this.hooks.chat(sim.name, sim.say.text); } return;
     }
   }
   buy(type, x, z, rot, simName, lvl = 0, inv = false) {
@@ -712,7 +716,7 @@ export class Household {
     if (gm > 0) {
       W.time += gm;
       const m = Math.floor(W.time);
-      while (this.lastMin < m) { this.lastMin++; this.visitMinute(); if (this.seasonMinute) { this.seasonMinute(this.lastMin); this.servicesMinute(this.lastMin); this.romanceMinute(this.lastMin); } this.minuteEvents(this.lastMin); peopleMinute(this, this.lastMin); people2Minute(this, this.lastMin); this.births(); if (this.lastMin % 60 === 0) this.lifeHour(Math.floor((this.lastMin % 1440) / 60)); if (this.lastMin % 23 === 0 && this.hooks.chatter) ambientChatter(this, this.hooks.chatter()); }
+      while (this.lastMin < m) { this.lastMin++; this.visitMinute(); if (this.seasonMinute) { this.seasonMinute(this.lastMin); this.servicesMinute(this.lastMin); this.romanceMinute(this.lastMin); this.easterMinute(this.lastMin); } this.minuteEvents(this.lastMin); peopleMinute(this, this.lastMin); people2Minute(this, this.lastMin); this.births(); if (this.lastMin % 60 === 0) this.lifeHour(Math.floor((this.lastMin % 1440) / 60)); if (this.lastMin % 23 === 0 && this.hooks.chatter) ambientChatter(this, this.hooks.chatter()); }
       this.continuous(gm);
     }
     for (const s of sims) this.tickSim(s, dtReal, gm, mul);
@@ -875,7 +879,7 @@ export class Household {
       if (V.stage === 2 && !sim.queue.length) sim.visit = null;
     }
   }
-  extInit() { installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); }
+  extInit() { installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); }
   births() {
     for (const f of this.pets()) {
       if (!f.pregUntil || this.world.time < f.pregUntil) continue;

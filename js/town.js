@@ -65,7 +65,7 @@ const menuItem = (label, icon, price, anim, dur, eff, extra = {}) => ({
   label: `${label} · ${fmtRp(price)}`, icon, check: canPay(price),
   build: (c) => ({ steps: [
     { target: { obj: c.obj.id }, anim: 'talk', dur: 2, label: 'Pesan', onStart: (x) => { nudge(x, extra.role || 'barista'); x.g.sfx && x.g.sfx('cash'); }, snd: extra.snd || null },
-    { target: { obj: c.obj.id }, anim, prop: extra.prop || null, dur, eff, label, snd: extra.snd2 || null, onDone: (x) => { pay(x, price, label); if (extra.mood) x.sim.mood(extra.mood); if (extra.done) extra.done(x); } },
+    { target: { obj: c.obj.id }, anim, prop: extra.prop || null, dur, eff, label, snd: extra.snd2 || null, onDone: (x) => { pay(x, price, label); if (extra.mood) x.sim.mood(extra.mood); if (extra.done) extra.done(x); if (extra.prop === 'cup') x.g.easter && x.g.easter('kopi', { sim: x.sim }); } },
   ] }),
 });
 Object.assign(INTER, {

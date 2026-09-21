@@ -15,6 +15,9 @@ import { Acct, cloud, logout } from './account.js';
 import { NPCS as NPCS2, STAFF as STAFF2 } from './people.js';
 import { openStudio, openGallery } from './studio.js';
 import { openCalendar, seasonChipText } from './seasons.js';
+import { openRush } from './minigame.js';
+import { openEggs, konamiWatcher } from './easter.js';
+import { openPhoto } from './polish.js';
 import { openEmergency } from './services.js';
 import { ACCESS_INFO } from './books2.js';
 import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
@@ -61,6 +64,7 @@ export class UI {
     this.chatLog = [];
   }
   attach(game) {
+    window.addEventListener('keydown', konamiWatcher(() => { this.g.cmd({ c: 'egg', t: 'konami' }); }));
     this.g = game; this.build(); this.refresh(); this.bindVoiceOut();
   }
 
@@ -319,7 +323,7 @@ export class UI {
     const w = m.offsetWidth, hh = m.offsetHeight;
     m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + 'px';
     m.style.top = Math.max(60, Math.min(window.innerHeight - hh - 8, y - 20)) + 'px';
-    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.ui === 'gallery') { this.closeMenu(); openGallery(this); return; } if (it.ui === 'aichat') { this.closeMenu(); this.openAIChat(it.cmd.name); return; } if (it.ui === 'library') { this.closeMenu(); this.openLibrary(it.cmd); return; } if (it.ui === 'studio') { this.closeMenu(); openStudio(this, it.cmd); return; } this.g.cmd({ ...it.cmd }); this.closeMenu(); };
+    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.ui === 'rush') { this.closeMenu(); openRush(this); return; } if (it.ui === 'gallery') { this.closeMenu(); openGallery(this); return; } if (it.ui === 'aichat') { this.closeMenu(); this.openAIChat(it.cmd.name); return; } if (it.ui === 'library') { this.closeMenu(); this.openLibrary(it.cmd); return; } if (it.ui === 'studio') { this.closeMenu(); openStudio(this, it.cmd); return; } this.g.cmd({ ...it.cmd }); this.closeMenu(); };
   }
   closeMenu() { const m = $('.ctx', this.root); if (m) m.classList.add('hidden'); }
   showObjTools(o, x, y) {
@@ -504,6 +508,9 @@ export class UI {
         <button class="btn" data-a="save">💾 Simpan sekarang ${cloud() ? '(cloud + perangkat)' : '(perangkat ini)'}</button>
         <button class="btn" data-a="help">❓ Cara main</button>
         <button class="btn" data-a="snd">${this.sound.on ? '🔊 Suara: nyala' : '🔇 Suara: mati'}</button>
+        <button class="btn" data-a="rush">🍛 Minigame: Nasi Padang Rush</button>
+        <button class="btn" data-a="eggs">🥚 Jurnal Rahasia (easter egg)</button>
+        <button class="btn" data-a="photo">📸 Mode Foto</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
         <button class="btn ghost" data-a="unstuck">🔧 Lepas macet: ${esc(this.g.active)}</button>
         <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · ${this.g.slot && this.g.slot !== 'solo' ? 'Rumah berdua ' + esc(this.g.slot.slice(5)) + (this.g.isHost ? ' (kamu host)' : ' (tamu)') : 'Main sendiri'}${this.g.cloudState ? ' · ☁️ ' + esc(this.g.cloudState) : ''}</p>
@@ -515,6 +522,9 @@ export class UI {
       if (a.dataset.a === 'save') { g.save(); this.closeModal(); }
       if (a.dataset.a === 'help') this.openHelp();
       if (a.dataset.a === 'snd') { this.sound.on = !this.sound.on; if (!this.sound.on) this.sound.stopAll(); this.openMenu(); }
+      if (a.dataset.a === 'rush') { this.closeModal(); openRush(this); }
+      if (a.dataset.a === 'eggs') { this.closeModal(); openEggs(this); }
+      if (a.dataset.a === 'photo') { this.closeModal(); openPhoto(this); }
       if (a.dataset.a === 'savenow') { this.g.save(true); this.toast('Menyimpan… 💾', 'info'); }
       if (a.dataset.a === 'unstuck') { this.g.cmd({ c: 'unstuck' }); this.closeModal(); }
       if (a.dataset.a === 'tomenu') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 600); }

@@ -1,5 +1,7 @@
 # Rumah Handoyo & Naswa — Perumahan Griya Asri
 
+> ⚙️ **Belum mengatur Vercel?** Baca `PANDUAN-SETUP.md` — panduan lengkap untuk kunci AI (Groq / Google / OpenRouter), database Upstash, TURN, dan cara mengeceknya.
+
 Game simulasi rumah tangga 3D ala The Sims. Bisa dimainkan sendiri, atau berdua dari 2 perangkat berbeda.
 
 ## Deploy ke Vercel (tanpa build)
@@ -29,6 +31,16 @@ vercel --prod
 
 
 
+
+
+## Update 7 — Easter Egg, Minigame & Polish
+
+- **10 easter egg tersembunyi** + jurnal rahasia (Menu → 🥚 Jurnal Rahasia) dengan petunjuk, bilah kemajuan, dan hadiah besar bila semuanya ditemukan.
+- **Minigame "Nasi Padang Rush"** — 5 level dengan target omzet, kesabaran pelanggan, kombo & tip, serta layar TAMAT. Hadiah: upah, piala yang dipajang di rumah, dan gelar rahasia bila tanpa pelanggan kabur.
+- **Mode Foto** — HUD disembunyikan, 6 filter sinematik, garis bantu, vinyet, cap tanggal, unduh atau pajang hasilnya di pigura rumah.
+- **Detail suasana**: kunang-kunang malam hari, kupu-kupu siang hari, azan magrib & subuh, konfeti, hujan daun, getaran kamera, plumbob pelangi/emas.
+
+Panduan lengkap (termasuk bocoran cara memicu tiap easter egg): `PANDUAN-EASTEREGG-MINIGAME.md`.
 
 ## Update 6 — Perpustakaan Raksasa & Rumah Makan Padang
 

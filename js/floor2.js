@@ -29,11 +29,11 @@ Object.assign(INTER, {
     build: (c) => ({ steps: [
       { target: { obj: c.obj.id }, anim: 'grab', dur: 2, prop: 'book' },
       { target: { type: ['readTable', 'armchair', 'sofa'], kind: 'seat', near: c.obj }, walkProp: 'book', ...read(50), fallbackHere: 'read', label: `Membaca ${c.book ? '“' + c.book.title + '”' : 'buku'}`,
-        onTick: (x, gm) => x.sim.xp((c.book && c.book.skill) || 'logika', gm * 0.45), onDone: (x) => { x.g.goal('read'); if (c.book && c.book.help) x.sim.mood('peduli'); } },
+        onTick: (x, gm) => x.sim.xp((c.book && c.book.skill) || 'logika', gm * 0.45), onDone: (x) => { x.g.goal('read'); if (c.book && c.book.help) x.sim.mood('peduli'); if (c.book) x.g.easter && x.g.easter('baca', { book: c.book, sim: x.sim }); } },
     ] }) },
   readLib: { label: 'Duduk & baca buku', icon: '📖', ui: 'library',
     build: (c) => ({ steps: [{ target: { obj: c.obj.id, kind: 'seat' }, ...read(50), label: `Membaca ${c.book ? '“' + c.book.title + '”' : 'buku'}`,
-      onTick: (x, gm) => x.sim.xp((c.book && c.book.skill) || 'logika', gm * 0.45), onDone: (x) => { x.g.goal('read'); if (c.book && c.book.help) x.sim.mood('peduli'); } }] }) },
+      onTick: (x, gm) => x.sim.xp((c.book && c.book.skill) || 'logika', gm * 0.45), onDone: (x) => { x.g.goal('read'); if (c.book && c.book.help) x.sim.mood('peduli'); if (c.book) x.g.easter && x.g.easter('baca', { book: c.book, sim: x.sim }); } }] }) },
   spinGlobe: { label: 'Putar bola dunia', icon: '🌍', build: (c) => ({ steps: [{ target: { obj: c.obj.id }, anim: 'grab', dur: 5, eff: { fun: 1 }, onTick: (x, gm) => x.sim.xp('logika', gm * 0.3) }] }) },
 });
 

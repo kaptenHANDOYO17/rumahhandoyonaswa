@@ -15,6 +15,7 @@ import { buildSeasonFX, updateSeasonFX, skyTint } from './seasons.js';
 import { buildServiceFX, updateServiceFX } from './services.js';
 import { updateRomanceFX } from './romance.js';
 import { buildPadang, buildPadangObject, updatePadang, isPadangType } from './padang.js';
+import { buildPolish, updatePolish, spawnBurst, shake } from './polish.js';
 import { aiAsk, aiReady, AI } from './ai.js';
 import { NPCS } from './people.js';
 import { saveSlot, writeLocal, beaconSave, cloud } from './account.js';
@@ -51,6 +52,10 @@ export class Game {
       openOutfit: (name) => { if (this.mySims.includes(name)) this.ui.openCAS(name); else this.send({ t: 'cas', sim: name }); },
       chat: (name, text) => { this.ui.chat(name, text); this.send({ t: 'chat', name, text }); },
       newDay: () => this.save(),
+      eggFound: (id) => { shake(this.polishFX, 0.3); if (['upacara', 'daun'].includes(id)) spawnBurst(this.polishFX, this, id === 'daun' ? 'daun' : 'konfeti'); },
+      leafBurst: () => spawnBurst(this.polishFX, this, 'daun'),
+      confetti: () => spawnBurst(this.polishFX, this, 'konfeti'),
+      ghost: () => { this.ghostT = 6; shake(this.polishFX, 0.25); },
       loanOffer: (o) => { this.ui.loanModal(o); this.send({ t: 'loan', o }); },
       loanClose: () => { this.ui.closeLoan(); this.send({ t: 'loanClose' }); },
     });
@@ -86,7 +91,7 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
-    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
     this.ensureModels();
@@ -204,7 +209,7 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
-      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); this.updateArt(night);
+      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
     }
@@ -306,6 +311,7 @@ export class Game {
     W.hemi.color.set(dayF > 0.3 ? '#dff2ff' : '#6d7fb0');
     const night = this.isNight() || (rain && dayF < 0.6);
     const pw = w.house.power;
+    if (this.ghostT > 0) { this.ghostT -= dt; for (const L of W.interiorLights) if (L.lvl) { const on = Math.sin(this.ghostT * 34) > 0; L.light.intensity = on ? 4 : 0; L.lamp.material.emissiveIntensity = on ? 1.4 : 0; } }
     for (const L of W.interiorLights) { if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; } L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0)); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
     for (const L of W.streetLamps) { if (L.isLight) L.intensity = night ? 18 : 0; else if (L.material) { L.material.emissive && L.material.emissive.set('#ffd27a'); L.material.emissiveIntensity = night ? 2 : 0; } }
     W.glassMat.emissiveIntensity = night && pw ? 0.55 : 0;
@@ -395,6 +401,7 @@ export class Game {
     const h = this.pick(cx, cy); if (!h) return;
     const me = this.hh.sims[this.active];
     if (h.sim) {
+      if (h.sim === this.active) { const now = Date.now(); if (now - (this._pbT || 0) > 2500) this._pbN = 0; this._pbT = now; this._pbN = (this._pbN || 0) + 1; if (this._pbN >= 10) { this._pbN = 0; this.cmd({ c: 'egg', t: 'plumbob' }); } }
       if (h.sim !== this.active && this.mySims.includes(h.sim) && this.mode === 'solo' && this.ui.shiftSelect) return this.switchSim(h.sim);
       const items = this.hh.menuFor(me, { sim: h.sim });
       const title = h.sim === this.active ? `${h.sim} (diri sendiri)` : `${this.active} → ${h.sim}`;

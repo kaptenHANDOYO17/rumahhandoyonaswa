@@ -8,11 +8,11 @@ const load = () => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); 
 export const AI = { key: '', model: 'gemma-4-26b-a4b-it', enabled: true, ambient: true, server: null, last: 0, calls: [], lastError: '', ...load() };
 export function saveAI() { try { localStorage.setItem(LS, JSON.stringify({ key: AI.key, model: AI.model, enabled: AI.enabled, ambient: AI.ambient })); } catch (e) { /* abaikan */ } }
 export async function probeServer() {
-  try { const r = await fetch('/api/ai', { method: 'GET' }); if (!r.ok) throw new Error(r.status); const j = await r.json(); AI.server = !!j.ok; if (j.model) AI.serverModel = j.model; } catch (e) { AI.server = false; }
+  try { const r = await fetch('/api/ai', { method: 'GET' }); if (!r.ok) throw new Error(r.status); const j = await r.json(); AI.server = !!j.ok; if (j.model) AI.serverModel = j.model; if (j.provider) AI.serverProvider = j.provider; } catch (e) { AI.server = false; }
   return AI.server;
 }
 export const aiReady = () => AI.enabled && (AI.server || !!AI.key);
-export function aiStatus() { if (!AI.enabled) return 'Mati'; if (AI.server) return `Aktif via server (${AI.serverModel || 'Gemma'})`; if (AI.key) return `Aktif via kunci API pribadi (${AI.model})`; return 'Belum ada kunci — pakai dialog bawaan'; }
+export function aiStatus() { if (!AI.enabled) return 'Mati'; if (AI.server) return `Aktif via server — ${AI.serverProvider || 'AI'} · ${AI.serverModel || 'model default'}`; if (AI.key) return `Aktif via kunci API pribadi (${AI.model})`; return 'Belum ada kunci — pakai dialog bawaan'; }
 const STYLE = 'Gaya: bahasa Indonesia santai sehari-hari (boleh sedikit Jawa/Semarangan), singkat, hangat, tanpa emoji berlebihan, tanpa tanda kutip, tanpa menyebut bahwa kamu AI. Latar: Perumahan Griya Asri, Semarang.';
 export async function aiAsk(prompt, maxTokens = 120) {
   if (!aiReady()) return null;

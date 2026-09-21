@@ -64,7 +64,7 @@ Object.assign(INTER, {
   mainAir: { label: 'Main air pakai selang', icon: '💦', check: (c) => (seasonOf(c.world) === 'panas' ? true : 'Paling seru saat musim panas'),
     build: (c) => ({ steps: [{ target: { pos: [-6, 8.5] }, anim: 'water', prop: 'wateringCan', dur: 15, eff: { fun: 2.2, hygiene: 1 }, snd: 'tap', label: 'Main air', onDone: (x) => x.sim.mood('segarAir') }] }) },
   sapuDaun: { label: 'Sapu tumpukan daun', icon: '🍂', build: (c) => ({ steps: [{ target: { obj: c.obj.id }, anim: 'mop', prop: 'mop', dur: 12, eff: { energy: -0.4 }, snd: 'swish', label: 'Sapu daun', onDone: (x) => { const W = x.g.world; W.objects = W.objects.filter((o) => o.id !== x.obj.id); W.objVer++; x.g.rebuildNav(); x.g.addFam(3); } }] }) },
-  lompatDaun: { label: 'Lompat ke tumpukan daun', icon: '🤸', build: (c) => ({ steps: [{ target: { obj: c.obj.id }, anim: 'dance', dur: 6, eff: { fun: 3 }, snd: 'swish', label: 'Lompat ke daun', onDone: (x) => x.sim.mood('dedaunan') }] }) },
+  lompatDaun: { label: 'Lompat ke tumpukan daun', icon: '🤸', build: (c) => ({ steps: [{ target: { obj: c.obj.id }, anim: 'dance', dur: 6, eff: { fun: 3 }, snd: 'swish', label: 'Lompat ke daun', onDone: (x) => { x.sim.mood('dedaunan'); x.g.easter && x.g.easter('lompatDaun', { sim: x.sim }); } }] }) },
 });
 
 // ---------------- simulasi musim (host) ----------------
