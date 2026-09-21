@@ -220,6 +220,8 @@ export class SimModel {
       case 'sponge': m(new THREE.BoxGeometry(0.08, 0.04, 0.12), '#f2d34b', 0, -0.05, 0.03); break;
       case 'can': m(G.cyl(0.07, 0.08, 0.16, 12), '#3e9a6e', 0, -0.08, 0.08); m(G.cyl(0.015, 0.015, 0.18, 6), '#3e9a6e', 0, -0.05, 0.2).rotation.x = 1.1; break;
       case 'phone': m(new THREE.BoxGeometry(0.07, 0.14, 0.012), '#15171c', 0, -0.03, 0.03); break;
+      case 'cup': m(G.cyl(0.035, 0.03, 0.09, 12), '#f2efe8', 0, -0.02, 0.05); m(G.cyl(0.03, 0.03, 0.01, 12), '#6d4c41', 0, 0.025, 0.05); break;
+      case 'parcel': m(new THREE.BoxGeometry(0.32, 0.22, 0.26), '#c8a27a', 0, -0.05, 0.14); break;
       case 'mop': m(G.cyl(0.012, 0.012, 1.2, 6), '#9a7a55', 0, -0.3, 0.1); m(new THREE.BoxGeometry(0.3, 0.05, 0.1), '#ececec', 0, -0.9, 0.1); break;
       case 'basket': m(new THREE.BoxGeometry(0.4, 0.22, 0.3), '#c9a46a', 0.2, -0.1, 0.12); break;
       case 'brush': m(new THREE.BoxGeometry(0.02, 0.02, 0.16), '#58b0e0', 0, -0.03, 0.06); break;

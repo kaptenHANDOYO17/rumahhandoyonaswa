@@ -49,7 +49,7 @@ Object.assign(PAIR, {
 // ---------- inisialisasi ----------
 export function initPeople(hh) {
   hh.others = {};
-  for (const [n, d] of Object.entries(NPCS)) { const s = hh.makeSim(n, d.species); s.outfit = { ...d.outfit }; hideAt(s, SPAWN[d.home]); s.plan = { mode: 'home', next: 0 }; hh.others[n] = s; }
+  for (const [n, d] of Object.entries(NPCS)) { const s = hh.makeSim(n, d.species); s.outfit = { ...d.outfit }; hideAt(s, SPAWN[d.home]); s.plan = { mode: 'home', next: 0 }; s.role = d.role || null; s.fam = d.fam || null; hh.others[n] = s; }
   for (const [n, d] of Object.entries(STAFF)) { const s = hh.makeSim(n, d.species); s.outfit = { ...d.outfit }; s.skills = { memasak: 800, logika: 200, kreatif: 200, bugar: 300, karisma: 300 }; hideAt(s, SPAWN.W); s.plan = { mode: 'home' }; hh.others[n] = s; }
   const W = hh.world;
   if (!W.nrel) W.nrel = Object.fromEntries(Object.keys({ ...NPCS, ...STAFF }).map((n) => [n, 30]));
@@ -68,6 +68,7 @@ const nearly = (s, p, r = 0.6) => Math.hypot(s.x - p[0], s.z - p[1]) < r;
 export function peopleMinute(hh, m) {
   const W = hh.world, min = m % 1440, hr = Math.floor(min / 60), day = Math.floor(m / 1440);
   for (const [n, d] of Object.entries(NPCS)) {
+    if (d.routine && d.routine !== 'legacy') continue;
     const s = hh.others[n]; if (!s) continue; const P = s.plan || (s.plan = { mode: 'home' });
     const home = SPAWN[d.home];
     if (P.mode === 'home') {

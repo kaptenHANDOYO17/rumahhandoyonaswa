@@ -8,7 +8,19 @@ import { SimModel } from './sim.js';
 import { Household, footprint, SPEEDS, ULTRA, HUMANS } from './state.js';
 import { PetModel, buildPetObject, updatePetVisual, isPetType, PETS, petScale } from './pets.js';
 import { buildFloor2, buildLibObject, isLibType, LVL_H } from './floor2.js';
-const mkObj = (o) => (isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : buildObject(o));
+import { buildTown, updateTown, buildTownObject, isTownType } from './town.js';
+import { buildCatalogObject, isCatalogType } from './catalog2.js';
+import { proceduralPainting } from './studio.js';
+import { buildSeasonFX, updateSeasonFX, skyTint } from './seasons.js';
+import { buildServiceFX, updateServiceFX } from './services.js';
+import { updateRomanceFX } from './romance.js';
+import { buildPadang, buildPadangObject, updatePadang, isPadangType } from './padang.js';
+import { aiAsk, aiReady, AI } from './ai.js';
+import { NPCS } from './people.js';
+import { saveSlot, writeLocal, beaconSave, cloud } from './account.js';
+const RND = (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? (k === 'x' || k === 'z' || k === 'y' || k === 'yaw' || k === 'time' ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10) : v);
+const DYN = ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'moving', 'engagedBy', 'icon', 'say', 'lvl', 'away', 'snd', 'busyT', 'visit'];
+const mkObj = (o) => (isPadangType(o.type) ? buildPadangObject(o) : isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : isTownType(o.type) ? buildTownObject(o) : isCatalogType(o.type) ? buildCatalogObject(o) : buildObject(o));
 import { TYPES, SIM_NAMES, GRID, LOT, HOUSE, PI } from './data.js';
 
 const SAVE_KEY = 'griyaasri-save-v1';
@@ -26,6 +38,16 @@ export class Game {
       toast: (m, t, b) => this.toast(m, t, b),
       money: (d) => { this.ui.money(d); this.send({ t: 'money', d }); },
       sfx: (k) => { this.ui.sfx(k); this.send({ t: 'sfx', k }); },
+      guestArrive: (o) => { this.ui.guestModal(o); this.send({ t: 'guestM', o }); },
+      guestClose: () => { this.ui.closeKind('guest'); this.send({ t: 'closeKind', k: 'guest' }); },
+      rtVisit: (o) => { this.ui.rtModal(o); this.send({ t: 'rtM', o }); },
+      rtClose: () => { this.ui.closeKind('rt'); this.send({ t: 'closeKind', k: 'rt' }); },
+      smsNotify: (who, text) => { this.ui.toast(`💬 SMS dari ${who}: ${text.slice(0, 70)}`, 'info'); },
+      gallery: () => { this.galleryDirty = true; },
+      collectorVisit: (name) => this.hh.collectorBuy(name),
+      autoPainting: () => proceduralPainting(),
+      ai: (prompt, max) => (this.isHost ? aiAsk(prompt, max) : Promise.resolve(null)),
+      chatter: () => (this.isHost && AI.ambient && aiReady() ? (s, role) => { const d = NPCS[s.name] || {}; return aiAsk(`Kamu adalah ${s.name} (${d.trait || role}). Saat ini jam ${Math.floor((this.hh.world.time % 1440) / 60)}.00 di perumahan. Ucapkan satu kalimat obrolan spontan yang cocok dengan kegiatanmu sekarang (${s.anim}). Maks 14 kata.`, 50); } : null),
       openOutfit: (name) => { if (this.mySims.includes(name)) this.ui.openCAS(name); else this.send({ t: 'cas', sim: name }); },
       chat: (name, text) => { this.ui.chat(name, text); this.send({ t: 'chat', name, text }); },
       newDay: () => this.save(),
@@ -38,8 +60,8 @@ export class Game {
   send(m) { if (this.mode === 'host' && this.net && this.peerOnline) this.net.send(m); }
   toast(m, t, b) { this.ui.toast(m, t, b); this.send({ t: 'toast', m, ty: t, b }); }
   cmd(c) {
-    if (['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'say', 'give', 'buy', 'sell', 'loan'].includes(c.c) && !c.sim) c.sim = this.active;
-    if (['buy', 'sell', 'give', 'loan'].includes(c.c) && this.hh.sims[c.sim] && this.hh.sims[c.sim].isPet) c.sim = this.mySims.find((n) => HUMANS.includes(n));
+    if (['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'say', 'give', 'buy', 'sell', 'loan', 'sms', 'order', 'painting', 'stopPaint', 'iuran', 'guest', 'art', 'proj'].includes(c.c) && !c.sim) c.sim = this.active;
+    if (['buy', 'sell', 'give', 'loan', 'sms', 'order', 'iuran', 'guest'].includes(c.c) && this.hh.sims[c.sim] && this.hh.sims[c.sim].isPet) c.sim = this.mySims.find((n) => HUMANS.includes(n));
     if (this.isHost) this.hh.command(c); else this.net.send({ t: 'cmd', c });
     this.ui.sfx('click');
   }
@@ -64,6 +86,7 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
     this.ensureModels();
@@ -90,6 +113,23 @@ export class Game {
       this.scene.add(m.root); this.models[s.name] = m; m.root.position.set(s.x, s.y || 0, s.z); m.outfitKey = JSON.stringify(s.outfit);
       if (!s.isPet) m.root.scale.setScalar(s.outfit.height || 1);
     }
+  }
+  paintingTex(p) {
+    if (!p || !p.img) return null; if (this.texCache.has(p.id)) return this.texCache.get(p.id);
+    const img = new Image(); const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; img.onload = () => { t.needsUpdate = true; }; img.src = p.img;
+    this.texCache.set(p.id, t); return t;
+  }
+  updateArt(night) {
+    const gal = this.hh.gallery || []; let fi = 0; const latest = gal[0];
+    for (const o of this.hh.world.objects) {
+      const g = this.objMeshes.get(o.id); if (!g) continue; const P = g.userData.P || {}; const T = TYPES[o.type];
+      if (P.glow) P.glow.intensity = night ? 1.6 : 0;
+      let target = null;
+      if (o.type === 'easel' && P.canvas) target = P.canvas; else if (P.pic) target = P.pic; if (!target) continue;
+      const p = T.frame ? ((o.s && o.s.pid && gal.find((x) => x.id === o.s.pid)) || gal[fi++]) : latest; const tex = p ? this.paintingTex(p) : null;
+      if (target.material.map !== tex) { target.material.map = tex; target.material.color.set(tex ? '#ffffff' : '#fbf8ef'); target.material.needsUpdate = true; }
+    }
+    if (this.galleryDirty && this.isHost) { this.galleryDirty = false; this.send({ t: 'gallery', list: this.hh.gallery }); }
   }
   setView(l) {
     if (this.viewLvl === l) return; const dy = (l - this.viewLvl) * LVL_H; this.viewLvl = l;
@@ -147,9 +187,9 @@ export class Game {
   //  Loop
   // ------------------------------------------------------------
   frame() {
-    const now = performance.now(); const dt = Math.min(0.05, (now - this.lastT) / 1000); this.lastT = now;
+    const now = performance.now(); const raw = Math.min(0.5, Math.max(0, (now - this.lastT) / 1000)); const dt = Math.min(0.05, raw); this.lastT = now;
     const hh = this.hh, W = hh.world;
-    if (this.isHost && !this.pausedByUI()) hh.tick(dt);
+    if (this.isHost && !this.pausedByUI()) { let r = raw; while (r > 0) { const st = Math.min(0.05, r); hh.tick(st); r -= st; } }
     else if (this.isHost) hh.tick(0);
     this.syncObjects(); this.syncDirt(); this.updateGrass();
     const mul = W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed]);
@@ -164,6 +204,7 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
+      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
     }
@@ -178,11 +219,11 @@ export class Game {
     if (W.vendor) this.W.vendor.userData.npc.update(dt, Math.sin(performance.now() / 900) > 0.6 ? 'wave' : 'idle');
     if (this.buy) this.updateGhost();
     // jaringan
-    if (this.mode === 'host' && this.peerOnline) { this.netT += dt; if (this.netT > 0.12) { this.netT = 0; this.net.send({ t: 'snap', s: hh.snapshot() }); } }
-    if (this.isHost) { this.saveT += dt; if (this.saveT > 120) { this.saveT = 0; this.save(); } }
+    if (this.mode === 'host' && this.peerOnline) { this.netT += dt; this.fullT = (this.fullT || 0) + dt; if (this.netT > 0.18) { this.netT = 0; const full = this.fullT > 6; if (full) this.fullT = 0; this.sendSnap(full); } }
+    this.saveT += dt; if (this.saveT > (this.isHost ? (this.roomCode ? 30 : 60) : 30)) { this.saveT = 0; this.save(false); }
     this.ui.frame(dt);
     if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
-    this.renderer.render(this.scene, this.camera);
+    if (!this.ui.studioOpen) this.renderer.render(this.scene, this.camera);
   }
   pausedByUI() { return false; }
   isNight() { const h = (this.hh.world.time % 1440) / 60; return h < 6.2 || h > 17.9; }
@@ -247,12 +288,13 @@ export class Game {
 
   updateLighting() {
     const W = this.W, w = this.hh.world; const h = (w.time % 1440) / 60;
-    const rain = w.weather === 'hujan';
+    const rain = w.weather === 'hujan' || w.weather === 'badai' || w.weather === 'salju';
     const el = Math.sin(((h - 6) / 12) * PI); // >0 siang
     const dayF = Math.max(0, Math.min(1, (el + 0.12) / 0.4));
     const duskF = Math.max(0, 1 - Math.abs(el) / 0.3) * (h > 4 && h < 20 ? 1 : 0);
     const sky = SKY.night.clone().lerp(SKY.day, dayF).lerp(SKY.dusk, duskF * 0.55);
-    if (rain) sky.lerp(SKY.rain, 0.55 * dayF + 0.2);
+    const stn = skyTint(w); if (stn) sky.lerp(new THREE.Color(stn), 0.3 * dayF);
+    if (rain) sky.lerp(SKY.rain, (w.weather === 'salju' ? 0.25 : 0.55) * dayF + 0.2);
     this.scene.background.copy(sky); this.scene.fog.color.copy(sky);
     this.scene.fog.near = rain ? 25 : 60; this.scene.fog.far = rain ? 110 : 190;
     const az = ((h - 6) / 12) * PI;
@@ -267,7 +309,7 @@ export class Game {
     for (const L of W.interiorLights) { if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; } L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0)); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
     for (const L of W.streetLamps) { if (L.isLight) L.intensity = night ? 18 : 0; else if (L.material) { L.material.emissive && L.material.emissive.set('#ffd27a'); L.material.emissiveIntensity = night ? 2 : 0; } }
     W.glassMat.emissiveIntensity = night && pw ? 0.55 : 0;
-    W.rain.visible = rain;
+    W.rain.visible = w.weather === 'hujan' || w.weather === 'badai';
     this.renderer.toneMappingExposure = 0.95 + (1 - dayF) * 0.25;
   }
 
@@ -418,7 +460,7 @@ export class Game {
       this.mouse = { x: cx, y: cy }; gh.dirty = true; this.updateGhost();
       if (!gh.ok) { this.ui.toast(gh.why || 'Tidak bisa ditaruh di sini', 'bad'); return; }
       if (gh.moveId) this.cmd({ c: 'move', id: gh.moveId, x: gh.x, z: gh.z, rot: gh.rot, lvl: this.viewLvl });
-      else this.cmd({ c: 'buy', type: gh.type, x: gh.x, z: gh.z, rot: gh.rot, lvl: this.viewLvl });
+      else this.cmd({ c: 'buy', type: gh.type, x: gh.x, z: gh.z, rot: gh.rot, lvl: this.viewLvl, inv: !!gh.inv });
       const keep = !gh.moveId && this.ui.keepPlacing;
       const type = gh.type, rot = gh.rot;
       this.cancelGhost();
@@ -435,21 +477,73 @@ export class Game {
   onNet(m) {
     if (this.isHost) {
       if (m.t === 'cmd') { if (m.c.sim && !this.peerSims().includes(m.c.sim) && !(this.hh.sims[m.c.sim] && this.hh.sims[m.c.sim].isPet) && ['act', 'self', 'mop', 'go', 'social', 'cancel', 'auto', 'outfit', 'give'].includes(m.c.c)) return; this.hh.command(m.c); }
-      if (m.t === 'hello') { this.net.send({ t: 'welcome', mySims: [...this.peerSims()], hostSims: this.mySims }); this.net.send({ t: 'snap', s: this.hh.snapshot() }); }
+      if (m.t === 'hello') { this._sent = null; this.net.send({ t: 'welcome', mySims: [...this.peerSims()], hostSims: this.mySims }); this.net.send({ t: 'snap', s: this.hh.snapshot() }); this.net.send({ t: 'gallery', list: this.hh.gallery }); }
     } else {
-      if (m.t === 'snap') { this.hh.applySnapshot(m.s); if (!this.gotSnap) { this.gotSnap = true; this.syncObjects(true); this.syncDirt(true); this.lastGrass = -1; } }
+      if (m.t === 'dsnap') { if (!this.snapBase) return; const B = this.snapBase; const P = m.s.world.objPatch; delete m.s.world.objPatch; if (P) for (const o of P) { const i = B.world.objects.findIndex((x) => x.id === o.id); if (i >= 0) B.world.objects[i] = o; } Object.assign(B.world, m.s.world); Object.assign(B.sims, m.s.sims); B.others = B.others || {}; for (const n in m.s.others) B.others[n] = Object.assign(B.others[n] || {}, m.s.others[n]); this.hh.applySnapshot(B); return; }
+      if (m.t === 'snap') { this.snapBase = m.s; this.hh.applySnapshot(m.s); if (!this.gotSnap) { this.gotSnap = true; this.syncObjects(true); this.syncDirt(true); this.lastGrass = -1; } }
       if (m.t === 'toast') this.ui.toast(m.m, m.ty, m.b);
       if (m.t === 'money') this.ui.money(m.d);
       if (m.t === 'sfx') this.ui.sfx(m.k);
       if (m.t === 'chat') this.ui.chat(m.name, m.text);
       if (m.t === 'cas' && this.mySims.includes(m.sim)) this.ui.openCAS(m.sim);
       if (m.t === 'loan') this.ui.loanModal(m.o);
+      if (m.t === 'gallery') { this.hh.gallery = m.list || []; this.hh.galleryVer = (this.hh.galleryVer || 0) + 1; }
+      if (m.t === 'guestM') this.ui.guestModal(m.o);
+      if (m.t === 'rtM') this.ui.rtModal(m.o);
+      if (m.t === 'closeKind') this.ui.closeKind(m.k);
       if (m.t === 'loanClose') this.ui.closeLoan();
     }
   }
   peerSims() { return HUMANS.filter((n) => !this.mySims.includes(n)); }
-  save() {
-    if (!this.isHost) return;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(this.hh.saveData())); this.ui.saved && this.ui.saved(); } catch (e) { /* storage penuh / diblokir */ }
+  // ---------- snapshot delta (hanya bagian dunia yang berubah) ----------
+  sendSnap(full) {
+    const s = this.hh.snapshot(); const L = this._sent || (this._sent = { world: {}, sims: {}, others: {} });
+    const out = { world: {}, sims: {}, others: {} }; let n = 0;
+    const OB = L.obj || (L.obj = {}); const objs = s.world.objects; const sig = objs.map((o) => o.id).join(','); const sameSet = !full && L.sig === sig;
+    if (sameSet) { const patch = []; for (const o of objs) { const j = JSON.stringify(o, RND); if (OB[o.id] !== j) { OB[o.id] = j; patch.push(JSON.parse(j)); } } if (patch.length) { out.world.objPatch = patch; n++; } }
+    else { L.sig = sig; for (const o of objs) OB[o.id] = JSON.stringify(o, RND); }
+    for (const part of ['world', 'sims', 'others']) for (const k in s[part] || {}) { if (sameSet && part === 'world' && k === 'objects') continue; let v = s[part][k]; if (part === 'others' && !full) { const o = {}; for (const f of DYN) o[f] = v[f]; v = o; } const j = JSON.stringify(v, RND); if (full || L[part][k] !== j) { out[part][k] = JSON.parse(j); L[part][k] = j; n++; } }
+    if (full) this.net.send({ t: 'snap', s }); else if (n) this.net.send({ t: 'dsnap', s: out });
+  }
+  // ---------- simpan: lokal langsung, cloud tiap ±60 dtk ----------
+  save(force = true) {
+    const slot = this.slot || 'solo';
+    if (!this.isHost && !this.snapBase) return;
+    let data; try { data = this.hh.saveData(); } catch (e) { return; }
+    const gal = (this.hh.gallery || []).slice(0, 16);
+    if (!this.isHost) { writeLocal(slot, data, gal); return; }       // tamu: cadangan lokal (untuk ambil alih host)
+    try { writeLocal(slot, data, gal); if (slot === 'solo') localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* abaikan */ }
+    const now = Date.now();
+    if (cloud() && (force || now - (this._cloudT || 0) > (slot === 'solo' ? 55000 : 25000))) {
+      this._cloudT = now; this.cloudState = 'menyimpan…';
+      saveSlot(slot, data, gal).then(() => { this.cloudState = `tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`; this.ui.saved && this.ui.saved(); }).catch((e) => { this.cloudState = 'gagal: ' + e.message; });
+    } else this.ui.saved && this.ui.saved();
+  }
+  // tab disembunyikan/diminimalkan: browser menghentikan animasi → dunia tetap disimulasikan
+  bgSim() {
+    if (this._bgIv) return;
+    document.addEventListener('visibilitychange', () => {
+      clearInterval(this._bgIv); this._bgIv = null;
+      if (!document.hidden || !this.isHost) return;
+      let last = performance.now();
+      this._bgIv = setInterval(() => {
+        const now = performance.now(); let dt = Math.min(2, (now - last) / 1000); last = now;
+        if (!this.isHost || this.pausedByUI()) return;
+        while (dt > 0) { const st = Math.min(0.05, dt); this.hh.tick(st); dt -= st; }
+        if (this.peerOnline) this.sendSnap(false);
+        this.saveT += 1; if (this.saveT > 30) { this.saveT = 0; this.save(false); }
+      }, 250);
+    });
+    this._bgIv = 0;
+  }
+  saveOnExit() { try { beaconSave(this.slot || 'solo', this.hh.saveData()); } catch (e) { /* abaikan */ } }
+  // ---------- tamu mengambil alih jadi host (host keluar) ----------
+  becomeHost(net) {
+    const data = this.hh.saveData(); const gal = this.hh.gallery || []; const hooks = this.hh.hooks;
+    this.hh = new Household(hooks); this.hh.loadSave(data); this.hh.gallery = gal;
+    this.mode = 'host'; this.net = net; this.peerOnline = false; this.snapBase = null; this._sent = null;
+    for (const n of HUMANS) if (!this.mySims.includes(n)) this.hh.sims[n].autonomy = true;
+    this.syncObjects(true); this.syncDirt(true); this.lastGrass = -1;
+    this.save(true);
   }
 }

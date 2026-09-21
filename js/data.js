@@ -166,12 +166,12 @@ export const SKILLS = [
 export const SKILL_XP = 100; // xp per level, max level 10
 
 export const CAREERS = {
-  Handoyo: { name: 'Perbankan', levels: [
-    ['Staf Magang', 160000], ['Teller', 220000], ['Customer Service Senior', 300000],
-    ['Supervisor', 420000], ['Manajer Cabang', 600000], ['Kepala Wilayah', 850000] ] },
-  Naswa: { name: 'Desain Grafis', levels: [
-    ['Desainer Magang', 160000], ['Desainer Junior', 230000], ['Desainer', 310000],
-    ['Desainer Senior', 430000], ['Art Director', 620000], ['Creative Director', 880000] ] },
+  Handoyo: { name: 'Software Engineering (Programmer)', levels: [
+    ['Junior Developer', 180000], ['Software Engineer', 260000], ['Senior Engineer', 380000],
+    ['Tech Lead', 520000], ['Engineering Manager', 700000], ['CTO', 950000] ] },
+  Naswa: { name: 'Pelukis (studio rumah & toko online)', levels: [
+    ['Pelukis Pemula', 0], ['Pelukis Muda', 0], ['Pelukis Profesional', 0],
+    ['Seniman Pameran', 0], ['Pelukis Ternama', 0], ['Maestro', 0] ] },
 };
 export const WORK_START = [6, 11]; // boleh berangkat jam 06.00–11.59
 export const WORK_LEN = 360;       // menit game

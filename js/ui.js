@@ -9,6 +9,14 @@ import {
 import { FAMILY_XP, HUMANS } from './state.js';
 import { PET_EMOJI, PET_LABEL, isBaby } from './pets.js';
 import { SoundFX } from './sound.js';
+import { Phone } from './phone.js';
+import { aiAsk, aiReady } from './ai.js';
+import { Acct, cloud, logout } from './account.js';
+import { NPCS as NPCS2, STAFF as STAFF2 } from './people.js';
+import { openStudio, openGallery } from './studio.js';
+import { openCalendar, seasonChipText } from './seasons.js';
+import { openEmergency } from './services.js';
+import { ACCESS_INFO } from './books2.js';
 import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
 import { STAFF, NPCS } from './people.js';
 const fmtShort = (n) => { const a = Math.abs(n), sg = n < 0 ? '−' : ''; if (a >= 1e9) return `${sg}Rp ${(a / 1e9).toLocaleString('id-ID', { maximumFractionDigits: 2 })} M`; if (a >= 1e6) return `${sg}Rp ${(a / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 1 })} jt`; return fmtRp(n); };
@@ -62,7 +70,7 @@ export class UI {
     R.append(
       h('div', 'labels', ''),
       h('header', 'topbar', `
-        <div class="clock card"><div class="clock-day" id="uDay">Senin</div><div class="clock-time" id="uTime">07:00</div><div class="clock-wx" id="uWx">☀️</div></div>
+        <div class="clock card"><div class="clock-day" id="uDay">Senin</div><div class="clock-time" id="uTime">07:00</div><div class="clock-wx" id="uWx">☀️</div><div class="clock-season" id="uSeason" title="Buka kalender"></div></div>
         <div class="speeds card" id="uSpeeds">
           <button data-sp="0" title="Jeda (Spasi)">❚❚</button><button data-sp="1" title="Normal (1)">▶</button><button data-sp="2" title="Cepat (2)">▶▶</button><button data-sp="3" title="Super cepat (3)">▶▶▶</button>
         </div>
@@ -78,6 +86,9 @@ export class UI {
         <button data-mode="walls" title="Dinding (C)">🧱<span id="uWallL">Potong</span></button>
         <button data-mode="follow" title="Ikuti karakter (F)">🎯<span>Ikuti</span></button>
         <button data-mode="chat" id="uChatBtn" title="Chat">💬<span>Chat</span></button>
+        <button data-mode="sos" title="Panggilan darurat" class="sos">🚨<span>Darurat</span></button>
+        <button data-mode="cal" title="Kalender & musim">📅<span>Kalender</span></button>
+        <button data-mode="gal" title="Galeri lukisan">🖼️<span>Galeri</span></button>
         <button data-mode="floor" title="Pindah lantai">🪜<span id="uFloorL">Lt 1</span></button>
         <button data-mode="books" title="Perpustakaan">📚<span>Buku</span></button>
         <button data-mode="staff" title="Asisten rumah tangga">🧑‍🍳<span>ART</span></button>
@@ -108,6 +119,9 @@ export class UI {
       if (m === 'voice') this.voiceToggle();
       if (m === 'floor') { this.g.followLvl = false; this.g.setView(this.g.viewLvl ? 0 : 1); this.refresh(); }
       if (m === 'books') this.openLibrary(null);
+      if (m === 'sos') openEmergency(this);
+      if (m === 'cal') openCalendar(this);
+      if (m === 'gal') openGallery(this);
       if (m === 'staff') this.openStaff();
       if (m === 'chat') { $('.chat', R).classList.toggle('hidden'); $('#uChatBtn').classList.remove('ping'); if (!$('.chat', R).classList.contains('hidden')) $('#uChatIn').focus(); }
     });
@@ -136,7 +150,7 @@ export class UI {
   frame(dt) {
     this.t += dt;
     this.updateLabels();
-    if (this.t > 0.25) { this.t = 0; this.refresh(); }
+    if (this.t > 0.25) { this.t = 0; this.refresh(); if (!this.phone) this.phone = new Phone(this); this.phone.tick(); }
   }
   updateLabels() {
     const g = this.g, cam = g.camera, rect = g.renderer.domElement.getBoundingClientRect(); const v = new THREE.Vector3();
@@ -165,6 +179,7 @@ export class UI {
     const g = this.g, hh = g.hh, W = hh.world, R = this.root;
     const day = Math.floor(W.time / 1440), mins = Math.floor(W.time % 1440);
     $('#uDay').textContent = `${DAY_NAMES[day % 7]} · Hari ${day + 1}`;
+    { const el = $('#uSeason'); if (el) { el.textContent = seasonChipText(W); if (!el._b) { el._b = true; el.onclick = () => openCalendar(this); } } }
     $('#uTime').textContent = `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
     $('#uWx').textContent = (W.weather === 'hujan' ? '🌧️' : (mins < 360 || mins > 1080) ? '🌙' : '☀️') + (W.house.power ? '' : ' 🕯️');
     for (const b of R.querySelectorAll('#uSpeeds button')) b.classList.toggle('on', +b.dataset.sp === W.speed);
@@ -286,7 +301,7 @@ export class UI {
     document.body.append(el); setTimeout(() => el.remove(), 1600);
   }
   sfx(k) { this.sound.play(k); }
-  saved() { this.toast('Permainan tersimpan 💾', 'info'); }
+  saved() { const t = Date.now(); if (t - (this._svT || 0) > 50000) { this._svT = t; this.toast(`Permainan tersimpan 💾${this.g.cloudState ? ' · ☁️ ' + this.g.cloudState : ''}`, 'info'); } }
   chat(name, text) {
     this.chatLog.push({ name, text }); if (this.chatLog.length > 40) this.chatLog.shift();
     $('#uChatLog').innerHTML = this.chatLog.map((c) => `<div><b class="${c.name}">${esc(c.name)}</b> ${esc(c.text)}</div>`).join('');
@@ -304,7 +319,7 @@ export class UI {
     const w = m.offsetWidth, hh = m.offsetHeight;
     m.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, x + 12)) + 'px';
     m.style.top = Math.max(60, Math.min(window.innerHeight - hh - 8, y - 20)) + 'px';
-    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.ui === 'library') { this.closeMenu(); this.openLibrary(it.cmd); return; } this.g.cmd({ ...it.cmd }); this.closeMenu(); };
+    m.onclick = (e) => { const b = e.target.closest('button[data-i]'); if (!b) return; const it = items[+b.dataset.i]; if (it.ui === 'gallery') { this.closeMenu(); openGallery(this); return; } if (it.ui === 'aichat') { this.closeMenu(); this.openAIChat(it.cmd.name); return; } if (it.ui === 'library') { this.closeMenu(); this.openLibrary(it.cmd); return; } if (it.ui === 'studio') { this.closeMenu(); openStudio(this, it.cmd); return; } this.g.cmd({ ...it.cmd }); this.closeMenu(); };
   }
   closeMenu() { const m = $('.ctx', this.root); if (m) m.classList.add('hidden'); }
   showObjTools(o, x, y) {
@@ -328,14 +343,16 @@ export class UI {
     this.refresh();
   }
   buildBuyCats() {
-    $('#uBCats').innerHTML = BUY_CATS.map((c) => `<button data-c="${c.id}">${c.label}</button>`).join('');
+    $('#uBCats').innerHTML = BUY_CATS.map((c) => `<button data-c="${c.id}">${c.label}</button>`).join('') + '<button data-c="gudang">📦 Gudang</button>';
     $('#uBCats').onclick = (e) => { const b = e.target.closest('button'); if (b) { this.buyCat = b.dataset.c; this._bH = null; this.renderBuyItems(); } };
-    $('#uBItems').onclick = (e) => { const b = e.target.closest('[data-t]'); if (b && !b.disabled) this.g.startGhost(b.dataset.t); };
+    $('#uBItems').onclick = (e) => { const b = e.target.closest('[data-t]'); if (b && !b.disabled) { this.g.startGhost(b.dataset.t); if (b.dataset.inv && this.g.buy && this.g.buy.ghost) this.g.buy.ghost.inv = true; } };
   }
   renderBuyItems() {
     const money = this.g.hh.world.money;
     for (const b of document.querySelectorAll('#uBCats button')) b.classList.toggle('on', b.dataset.c === this.buyCat);
-    const html = Object.entries(TYPES).filter(([, T]) => T.cat === this.buyCat && !T.fixed).map(([k, T]) => `<button class="item ${money < T.price ? 'poor' : ''}" data-t="${k}"><span class="ico">${ICONS[k] || '📦'}</span><b>${T.name}</b><em>${fmtRp(T.price)}</em></button>`).join('');
+    const inv = this.g.hh.world.inventory || {};
+    if (this.buyCat === 'gudang') { const h2 = Object.entries(inv).filter(([, n]) => n > 0).map(([k, n]) => `<button class="item" data-t="${k}" data-inv="1"><span class="ico">${ICONS[k] || TYPES[k].icon || '📦'}</span><b>${TYPES[k].name}</b><em>${n} unit · gratis (sudah dibeli online)</em></button>`).join('') || '<p class="muted small">Gudang kosong. Belanja furnitur lewat HP › Belanja, lalu buka paketnya.</p>'; if (this._bH !== h2) { this._bH = h2; $('#uBItems').innerHTML = h2; } return; }
+    const html = Object.entries(TYPES).filter(([, T]) => T.cat === this.buyCat && !T.fixed).map(([k, T]) => `<button class="item ${money < T.price ? 'poor' : ''}" data-t="${k}"><span class="ico">${ICONS[k] || T.icon || '📦'}</span><b>${T.name}</b><em>${fmtRp(T.price)}</em></button>`).join('');
     if (this._bH !== html) { this._bH = html; $('#uBItems').innerHTML = html; }
   }
   buyGhostChanged() { const gh = this.g.buy && this.g.buy.ghost; $('#uGhost').innerHTML = gh ? `${ICONS[gh.type] || ''} <b>${TYPES[gh.type].name}</b> — klik lantai untuk menaruh, <b>R</b>/⟳ untuk memutar` : 'Pilih barang, atau klik benda di rumah untuk dipindah / dijual.'; }
@@ -344,24 +361,56 @@ export class UI {
   // ---------- dinding ----------
   cycleWalls() { const order = ['cut', 'down', 'up', 'roof']; const i = order.indexOf(this.g.wallMode); this.g.setWallMode(order[(i + 1) % 4]); this.refresh(); }
 
+  // ---------- ngobrol bebas dengan AI Gemma (semua karakter) ----------
+  persona(name) {
+    const g = this.g, hh = g.hh, s = hh.actorByName(name); const d = NPCS2[name] || STAFF2[name] || {};
+    const hour = Math.floor((hh.world.time % 1440) / 60), day = Math.floor(hh.world.time / 1440) + 1;
+    if (s && s.isPet) return `Kamu adalah ${name}, ${s.species === 'cat' ? 'kucing' : 'capybara'} ${s.sex === 'f' ? 'betina' : 'jantan'} peliharaan Handoyo & Naswa. Jawab seperti hewan: suara khas (${s.species === 'cat' ? 'meong' : 'cicit'}) lalu terjemahan pikiranmu dalam kurung, lucu & polos.`;
+    if (s && s.species === 'human') { const low = Object.entries(s.needs).filter(([, v]) => v < 35).map(([k]) => k).join(', '); const job = name === 'Handoyo' ? 'programmer (software engineer)' : 'pelukis yang menjual karyanya online'; return `Kamu adalah ${name}, ${name === 'Handoyo' ? 'suami' : 'istri'} di rumah Griya Asri, pekerjaanmu ${job}. Suasana hatimu: ${s.moodLevel ? s.moodLevel().label : 'biasa'}. ${low ? 'Kamu sedang merasa kurang: ' + low + '.' : ''} Hubungan dengan pasangan hangat dan romantis.`; }
+    const rel = hh.world.nrel ? Math.round(hh.world.nrel[name] || 30) : 30;
+    return `Kamu adalah ${name}, warga Perumahan Griya Asri. Sifat/peran: ${d.trait || d.role || 'warga'}${d.fam ? ', keluarga ' + d.fam : ''}${d.relation ? ', ' + d.relation : ''}. Keakraban dengan keluarga Handoyo-Naswa: ${rel}/100. Sekarang hari ke-${day}, jam ${hour}.`;
+  }
+  openAIChat(name) {
+    const me = this.g.active; const mem = (this.aiMem = this.aiMem || {}); const log = (mem[name] = mem[name] || []);
+    const render = () => { const L = $('.aichat .log', this.root); if (!L) return; L.innerHTML = log.map((x) => `<div class="${x.me ? 'me' : 'them'}">${esc(x.text)}</div>`).join('') || `<p class="muted small">Mulai ngobrol dengan ${esc(name)}. ${aiReady() ? '🤖 Dijawab AI Gemma sesuai karakternya.' : 'ℹ️ AI Gemma belum aktif (atur di HP → AI Gemma), jadi jawabannya dialog bawaan.'}</p>`; L.scrollTop = 1e6; };
+    const m = this.modal(`<div class="aichat"><h2>💬 ${esc(me)} ↔ ${esc(name)}</h2><div class="log"></div><form><input maxlength="200" placeholder="Tulis pesan…" autocomplete="off"><button class="btn">Kirim</button></form><div class="mbtns row"><button class="btn ghost sm" data-close>Tutup</button></div></div>`);
+    render();
+    m.querySelector('form').onsubmit = async (e) => {
+      e.preventDefault(); const inp = m.querySelector('input'); const text = inp.value.trim(); if (!text) return; inp.value = '';
+      log.push({ me: true, text }); render(); this.g.cmd({ c: 'say', text });
+      const hist = log.slice(-10).map((x) => `${x.me ? me : name}: ${x.text}`).join('\n');
+      const prompt = `${this.persona(name)}\nKamu sedang ngobrol langsung dengan ${me}.\nRiwayat:\n${hist}\nBalas sebagai ${name}, 1-3 kalimat, natural, sesuai karakter. Jangan menulis nama di depan jawaban.`;
+      const typing = { me: false, text: '…' }; log.push(typing); render();
+      let reply = await aiAsk(prompt, 140).catch(() => null);
+      if (!reply) reply = ['Hehe iya, bener juga ya.', 'Wah, cerita dong lebih lanjut!', 'Aku setuju. Nanti kita ngopi bareng ya.', 'Hmm, aku mikir dulu deh.', 'Siap, makasih ya udah ngajak ngobrol 😊'][Math.floor(Math.random() * 5)];
+      typing.text = reply; render(); this.g.cmd({ c: 'npcSay', name, text: reply });
+      if (log.length > 30) log.splice(0, log.length - 30);
+    };
+    setTimeout(() => m.querySelector('input').focus(), 50);
+  }
+
   // ---------- perpustakaan ----------
   openLibrary(cmd, shelf = 'krim') {
     const list = BOOKS.filter((b) => b.shelf === shelf);
     const m = this.modal(`<h2>📚 Perpustakaan Lantai 2</h2>
       <p class="muted small">${BOOKS.length} buku bisa dibaca. ${cmd ? `Pilih buku — ${esc(this.g.active)} akan duduk membacanya.` : 'Baca langsung di sini, atau suruh karakter baca lewat rak buku di lantai 2.'}</p>
+      <details class="access"><summary>📱 Cara membaca versi lengkap secara legal</summary>${ACCESS_INFO.map((t) => `<p class="small">${esc(t)}</p>`).join('')}</details>
       <nav class="shelves">${SHELVES.map((sh) => `<button data-sh="${sh.id}" class="${sh.id === shelf ? 'on' : ''}" style="--bc:${sh.color}">${sh.label}</button>`).join('')}</nav>
-      <div class="booklist">${list.map((b) => `<button class="book" data-b="${b.id}" style="--bc:${SHELVES.find((x) => x.id === b.shelf).color}"><i></i><span><b>${esc(b.title)}</b><small>${esc(b.author)}</small></span></button>`).join('')}</div>
+      <div class="booklist">${list.map((b) => `<button class="book" data-b="${b.id}" style="--bc:${SHELVES.find((x) => x.id === b.shelf).color}"><i></i><span><b>${esc(b.title)}</b><small>${esc(b.author)} · ${b.pages.length} hlm</small></span></button>`).join('')}</div>
       <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
     m.querySelector('.shelves').onclick = (e) => { const b = e.target.closest('[data-sh]'); if (b) this.openLibrary(cmd, b.dataset.sh); };
     m.querySelector('.booklist').onclick = (e) => { const b = e.target.closest('[data-b]'); if (!b) return; if (cmd) this.g.cmd({ ...cmd, book: b.dataset.b }); this.openBook(b.dataset.b, 0, cmd); };
   }
-  openBook(id, page = 0, cmd) {
+  openBook(id, page = null, cmd) {
+    const BM = (() => { try { return JSON.parse(localStorage.getItem('griyaasri-bookmarks') || '{}'); } catch (e) { return {}; } })();
+    if (page == null) page = BM[id] || 0; BM[id] = page; try { localStorage.setItem('griyaasri-bookmarks', JSON.stringify(BM)); } catch (e) { /* abaikan */ }
     const b = bookById(id); const col = SHELVES.find((x) => x.id === b.shelf).color; const n = b.pages.length;
     const m = this.modal(`<div class="reader" style="--bc:${col}"><div class="rhead"><div class="cover"><b>${esc(b.title)}</b><small>${esc(b.author)}</small></div></div>
       <div class="rpage"><p>${esc(b.pages[page])}</p>${b.help && page === n - 1 ? `<div class="helpbox">💚 ${esc(HELP_FOOTER)}</div>` : ''}</div>
-      <div class="rnav"><button class="btn ghost sm" data-p="-1" ${page === 0 ? 'disabled' : ''}>← Sebelumnya</button><span>Halaman ${page + 1} / ${n}</span><button class="btn sm" data-p="1" ${page === n - 1 ? 'disabled' : ''}>Berikutnya →</button></div>
+      <div class="rnav"><button class="btn ghost sm" data-p="-1" ${page === 0 ? 'disabled' : ''}>← Sebelumnya</button><span class="rjump">Halaman ${page + 1} / ${n}<input type="range" min="1" max="${n}" value="${page + 1}" data-jump></span><button class="btn sm" data-p="1" ${page === n - 1 ? 'disabled' : ''}>Berikutnya →</button></div>
       <div class="mbtns row"><button class="btn ghost sm" data-back>Kembali ke rak</button><button class="btn ghost sm" data-close>Tutup</button></div></div>`, 'wide');
     this.sound.play('page');
+    m.querySelector('[data-jump]').onchange = (e) => this.openBook(id, +e.target.value - 1, cmd);
     m.querySelector('.rnav').onclick = (e) => { const x = e.target.closest('[data-p]'); if (x && !x.disabled) this.openBook(id, page + +x.dataset.p, cmd); };
     m.querySelector('[data-back]').onclick = () => this.openLibrary(null, b.shelf);
   }
@@ -377,6 +426,24 @@ export class UI {
     m.querySelector('#lnYes').onclick = () => { g.cmd({ c: 'loan', accept: true, sim: me }); this.closeModal(); };
     m.querySelector('#lnNo').onclick = () => { g.cmd({ c: 'loan', accept: false, sim: me }); this.closeModal(); };
   }
+  openStudioFor(objId) { openStudio(this, { c: 'act', key: 'paintManual', objId, sim: this.g.active }); }
+  guestModal(o) {
+    if (!o) return; const g = this.g;
+    const m = this.modal(`<h2>🔔 Ting-tong! Ada tamu</h2><p><b>${esc(o.name)}</b> (${esc(o.relation || '')}) datang ke rumah.</p><p class="muted small">Kalau dipersilakan masuk, tamu akan duduk di ruang keluarga, ngobrol, ikut makan, dan kadang bawa oleh-oleh.</p>
+      <div class="mbtns row"><button class="btn ghost" id="gNo">Maaf, sedang sibuk</button><button class="btn" id="gYes">Persilakan masuk</button></div>`);
+    m.dataset.kind = 'guest';
+    m.querySelector('#gYes').onclick = () => { g.cmd({ c: 'guest', accept: true }); this.closeModal(); };
+    m.querySelector('#gNo').onclick = () => { g.cmd({ c: 'guest', accept: false }); this.closeModal(); };
+  }
+  rtModal(o) {
+    if (!o) return; const g = this.g;
+    const m = this.modal(`<h2>🧾 Pak Harjo (Ketua RT) mampir</h2><p>"Assalamualaikum, Mas/Mbak. Mau ambil iuran bulanan kebersihan & keamanan <b>${fmtRp(o.amount)}</b> nggih. Buat gaji Pak Slamet, lampu jalan, sama sampah."</p>
+      <div class="mbtns row"><button class="btn ghost" id="rNo">Nanti dulu, Pak</button><button class="btn" id="rYes">Bayar iuran</button></div>`);
+    m.dataset.kind = 'rt';
+    m.querySelector('#rYes').onclick = () => { g.cmd({ c: 'iuran', accept: true }); this.closeModal(); };
+    m.querySelector('#rNo').onclick = () => { g.cmd({ c: 'iuran', accept: false }); this.closeModal(); };
+  }
+  closeKind(k) { const m = $('.modal', this.root); if (m && m.dataset.kind === k) { delete m.dataset.kind; this.closeModal(); } }
   closeLoan() { const m = $('.modal', this.root); if (m && m.dataset.loan) { delete m.dataset.loan; this.closeModal(); } }
   // ---------- ART ----------
   openStaff() {
@@ -425,7 +492,7 @@ export class UI {
 
   // ---------- modal ----------
   modal(html, cls = '') {
-    const m = $('.modal', this.root); delete m.dataset.loan; m.className = 'modal ' + cls; m.innerHTML = `<div class="mcard">${html}</div>`;
+    const m = $('.modal', this.root); delete m.dataset.loan; delete m.dataset.kind; m.className = 'modal ' + cls; m.innerHTML = `<div class="mcard">${html}</div>`;
     m.onclick = (e) => { if (e.target === m || e.target.closest('[data-close]')) this.closeModal(); };
     return m;
   }
@@ -434,10 +501,12 @@ export class UI {
     const g = this.g;
     const m = this.modal(`<h2>Menu</h2>
       <div class="mbtns">
-        ${g.isHost ? '<button class="btn" data-a="save">💾 Simpan permainan</button>' : ''}
+        <button class="btn" data-a="save">💾 Simpan sekarang ${cloud() ? '(cloud + perangkat)' : '(perangkat ini)'}</button>
         <button class="btn" data-a="help">❓ Cara main</button>
         <button class="btn" data-a="snd">${this.sound.on ? '🔊 Suara: nyala' : '🔇 Suara: mati'}</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
+        <button class="btn ghost" data-a="unstuck">🔧 Lepas macet: ${esc(this.g.active)}</button>
+        <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · ${this.g.slot && this.g.slot !== 'solo' ? 'Rumah berdua ' + esc(this.g.slot.slice(5)) + (this.g.isHost ? ' (kamu host)' : ' (tamu)') : 'Main sendiri'}${this.g.cloudState ? ' · ☁️ ' + esc(this.g.cloudState) : ''}</p>
         <button class="btn" data-a="gfx">${g.quality.low ? '🖥️ Grafis: ringan' : '🖥️ Grafis: tinggi'}</button>
         <button class="btn ghost" data-a="exit">🚪 Keluar ke menu utama</button>
         <button class="btn ghost" data-close>Tutup</button></div>`);
@@ -446,9 +515,12 @@ export class UI {
       if (a.dataset.a === 'save') { g.save(); this.closeModal(); }
       if (a.dataset.a === 'help') this.openHelp();
       if (a.dataset.a === 'snd') { this.sound.on = !this.sound.on; if (!this.sound.on) this.sound.stopAll(); this.openMenu(); }
+      if (a.dataset.a === 'savenow') { this.g.save(true); this.toast('Menyimpan… 💾', 'info'); }
+      if (a.dataset.a === 'unstuck') { this.g.cmd({ c: 'unstuck' }); this.closeModal(); }
+      if (a.dataset.a === 'tomenu') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 600); }
       if (a.dataset.a === 'vol') { const v = [0.3, 0.55, 0.8, 1][([0.3, 0.55, 0.8, 1].indexOf(this.sound.vol) + 1) % 4]; this.sound.setVolume(v); this.openMenu(); }
       if (a.dataset.a === 'gfx') { g.setQuality(!g.quality.low); this.openMenu(); }
-      if (a.dataset.a === 'exit') { if (g.isHost) g.save(); location.reload(); }
+      if (a.dataset.a === 'exit') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 700); }
     };
   }
   openHelp() {
