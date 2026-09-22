@@ -31,6 +31,9 @@ import './studio.js';
 import { TOWN_OBJECTS, TOWN_WALLS, VENDOR_SPOTS } from './town.js';
 const STUDIO_OBJECTS = [['bigEasel', 4.3, -3.7, 0], ['paintTable', 3.75, -5.55, 0], ['canvasRack', 7.6, -4.6, 3], ['studioLamp', 3.5, -2.2, 0]];
 export const HUMANS = ['Handoyo', 'Naswa'];
+{ const S = INTER.sleep; if (S && !S._opt) { S._opt = true; const bd = S.build; S.build = (c) => { const r = bd(c); const st = r.steps && r.steps[0];
+  if (st && c.world.opt && !c.world.opt.energy) { st.until = (x) => { const h = (x.g.world.time % 1440) / 60; return h >= 5.5 && h < 22; }; st.eff = { ...(st.eff || {}), fun: 0.15, hygiene: -0.05 }; }
+  return r; }; } }
 for (const k of ['workCar', 'workOjol']) { const W0 = INTER[k]; if (W0 && !W0._naswa) { const ck = W0.check; W0._naswa = true; W0.check = (c) => (c.sim.name === 'Naswa' ? 'Naswa bekerja sebagai pelukis di studio rumah (kanvas & app Toko Lukisan)' : ck(c)); } }
 const by = (s) => (s.lvl || 0) * LVL_H;
 SOCIAL.longhug = { ...SOCIAL.hug, label: 'Pelukan hangat yang lama', icon: '🫂', dur: 15, rel: 6, mood: 'peluk', min: Math.min(SOCIAL.hug.min || 0, 10) };
@@ -368,6 +371,8 @@ export class Household {
       case 'act': return this.queueAct(sim, c.key, c.objId, c.book ? { book: bookById(c.book) } : {});
       case 'loan': return loanDecision(this, c);
       case 'unstuck': return this.unstuck(sim);
+      case 'opt': { const W = this.world; W.opt = { ...W.opt, ...(c.opt || {}) }; if (!W.opt.energy) for (const h of this.humans()) h.needs.energy = 100;
+        this.toast(`⚙️ Pengaturan diperbarui — energi ${W.opt.energy ? 'aktif' : 'dimatikan'}, kebutuhan ${Math.round(W.opt.decayMul * 100)}%, hari ${W.opt.dayMul}× lebih panjang`, 'info'); return; }
       case 'egg': return this.easter && this.easter(c.t, { ...(c.d || {}), sim });
       case 'rush': return rushReward(this, { ...c, sim: c.sim });
       case 'season': { const L = ['salju', 'hujan', 'panas', 'gugur'].includes(c.lock) ? c.lock : null; this.world.seasonLock = L; this.world.weather = 'cerah'; this.world.weatherLeft = 0; this.toast(L ? `🔒 Musim dikunci: ${L}` : '🔄 Musim kembali mengikuti kalender', 'info'); return; }
@@ -712,7 +717,8 @@ export class Household {
     // ultra: semua tidur / di kantor
     const busyLong = (s) => { const a = s.cur; return a && a.kind === 'inter' && a.phase === 'do' && (a.key === 'sleep' || (a.steps && a.steps[a.si] && a.steps[a.si].hide)); };
     W.ultra = W.speed > 0 && this.humans().every(busyLong);
-    const mul = W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed]);
+    const opt = W.opt || (W.opt = { energy: false, decayMul: 0.5, dayMul: 2 });
+    const mul = (W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed])) / (opt.dayMul || 1);
     const gm = dtReal * mul;
     if (gm > 0) {
       W.time += gm;
@@ -745,8 +751,10 @@ export class Household {
   decay(sim, gm) {
     const a = sim.cur; const sleeping = a && a.kind === 'inter' && ['sleep', 'nap', 'napSofa', 'sleepPet', 'napSofaCat', 'napBedCat'].includes(a.key) && a.phase === 'do';
     const away = sim.hidden;
+    const opt = this.world.opt || {};
     for (const d of NEEDS) {
-      let r = d.decay / 60 * (sim.isPet ? PET_DECAY[sim.species][d.id] : 1);
+      if (d.id === 'energy' && !opt.energy && !sim.isPet) { sim.needs.energy = 100; continue; }   // energi dimatikan untuk pemain
+      let r = d.decay / 60 * (sim.isPet ? PET_DECAY[sim.species][d.id] : 1) * (sim.isPet ? 1 : (opt.decayMul ?? 1));
       if (sleeping && (d.id === 'hunger' || d.id === 'bladder')) r *= 0.45;
       if (sleeping && (d.id === 'energy' || d.id === 'social' || d.id === 'fun')) r = d.id === 'energy' ? 0 : r * 0.2;
       if (away) r *= { social: 0, bladder: 0.25, hunger: 0.55, hygiene: 0.5, energy: 0.7, fun: 0.6 }[d.id];
@@ -765,7 +773,7 @@ export class Household {
       this.addDirt(sim.x + 0.3, sim.z, true);
       this.toast(`Aduh! ${sim.name} ngompol... 😳`, 'bad', true);
     }
-    if (!sim.isPet && sim.needs.energy <= 0 && !sim.hidden && !(sim.queue[0] && sim.queue[0].key === 'passout')) {
+    if (!sim.isPet && opt.energy !== false && sim.needs.energy <= 0 && !sim.hidden && !(sim.queue[0] && sim.queue[0].key === 'passout')) {
       if (sim.cur && !this.stepNoCancel(sim.cur)) this.endAction(sim, sim.cur, true);
       if (sim.engagedBy) { const o = this.sims[sim.engagedBy]; o.cur && this.endAction(o, o.cur, true); }
       sim.queue.unshift({ id: ++this.aid, kind: 'inter', key: 'passout', objId: null, extra: {}, label: 'Pingsan kecapekan', icon: '😵' });
@@ -880,7 +888,7 @@ export class Household {
       if (V.stage === 2 && !sim.queue.length) sim.visit = null;
     }
   }
-  extInit() { installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); }
+  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); }
   births() {
     for (const f of this.pets()) {
       if (!f.pregUntil || this.world.time < f.pregUntil) continue;
@@ -1013,7 +1021,8 @@ export class Household {
     const day = this.day(); const car = sim.prof.career;
     if (sim.name !== 'Naswa' && day % 7 < 5 && car.workedDay !== day && hr >= 7 && hr < 11 && n.energy > 20) add(95, 'workOjol', 'gate');
     const night = hr >= 21 || hr < 6;
-    if (night || n.energy < 22) add((100 - n.energy) * 1.5 + 20, 'sleep', 'bed'); else if (n.energy < 30) add((100 - n.energy) * 1.0, 'napSofa', 'sofa');
+    if (this.world.opt && !this.world.opt.energy) { if (night) add(70, 'sleep', 'bed'); }
+    else if (night || n.energy < 22) add((100 - n.energy) * 1.5 + 20, 'sleep', 'bed'); else if (n.energy < 30) add((100 - n.energy) * 1.0, 'napSofa', 'sofa');
     if (n.bladder < 55) add((100 - n.bladder) * 1.7, 'useToilet', 'toilet');
     if (n.hygiene < 55) add((100 - n.hygiene) * 1.2, 'shower', 'shower');
     if (n.fun < 60) {

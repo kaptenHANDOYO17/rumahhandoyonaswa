@@ -243,7 +243,7 @@ export class UI {
     const bar = (v, col) => `<div class="bar"><i style="width:${v}%;background:${col || (v > 60 ? 'var(--green)' : v > 30 ? 'var(--sun)' : 'var(--red)')}"></i></div>`;
     switch (this.tab) {
       case 'needs':
-        html = `<div class="needs">${NEEDS.map((d) => `<div class="need"><span>${d.icon} ${d.label}</span>${bar(Math.round(s.needs[d.id]))}</div>`).join('')}</div>`; break;
+        html = `<div class="needs">${NEEDS.filter((d) => d.id !== 'energy' || s.isPet || (W.opt && W.opt.energy)).map((d) => `<div class="need"><span>${d.icon} ${d.label}</span>${bar(Math.round(s.needs[d.id]))}</div>`).join('')}</div>`; break;
       case 'mood': {
         const ms = s.activeMoodlets().sort((a, b) => Math.abs(b.val) - Math.abs(a.val)); const ml = s.moodLevel();
         html = `<div class="moodhead" style="--mc:${ml.color}"><div class="gem big"></div><b>${ml.label}</b><span>skor ${s.moodValue()}</span></div>
@@ -365,6 +365,29 @@ export class UI {
 
   // ---------- dinding ----------
   cycleWalls() { const order = ['cut', 'down', 'up', 'roof']; const i = order.indexOf(this.g.wallMode); this.g.setWallMode(order[(i + 1) % 4]); this.refresh(); }
+
+  // ---------- pengaturan kenyamanan bermain ----------
+  openOptions() {
+    const g = this.g; const O = { energy: false, decayMul: 0.5, dayMul: 2, ...(g.hh.world.opt || {}) };
+    const jam = (d) => `${Math.round(24 * 60 / (60 / d))}`;
+    const m = this.modal(`<h2>⚙️ Kenyamanan Main</h2>
+      <p class="muted small">Atur seberapa santai permainannya. Berlaku untuk Handoyo & Naswa (hewan tetap seperti biasa).</p>
+      <div class="optRow"><b>⚡ Kebutuhan energi</b><small>Kalau dimatikan, karakter tidak pernah capek atau pingsan, dan bar energi disembunyikan. Tidur tetap bisa dilakukan untuk suasana.</small>
+        <div class="row"><button class="btn sm ${O.energy ? 'ghost' : ''}" data-e="0">Dimatikan (santai)</button><button class="btn sm ${O.energy ? '' : 'ghost'}" data-e="1">Aktif (klasik)</button></div></div>
+      <div class="optRow"><b>🍛 Kecepatan kebutuhan lain</b><small>Lapar, kebersihan, kamar kecil, sosial, hiburan. Makin kecil makin tahan lama.</small>
+        <div class="row">${[[1, '100% · normal'], [0.7, '70%'], [0.5, '50% · tahan lama'], [0.3, '30% · sangat tahan'], [0.15, '15% · nyaris tidak turun']].map(([v, t]) => `<button class="btn sm ${O.decayMul === v ? '' : 'ghost'}" data-d="${v}">${t}</button>`).join('')}</div></div>
+      <div class="optRow"><b>⏳ Panjang hari</b><small>Memperlambat jalannya jam supaya tugas harian tidak terburu-buru. 2× berarti satu hari game terasa dua kali lebih lama.</small>
+        <div class="row">${[[1, '1× normal'], [1.5, '1,5×'], [2, '2× santai'], [3, '3×'], [4, '4× sangat lambat']].map(([v, t]) => `<button class="btn sm ${O.dayMul === v ? '' : 'ghost'}" data-t="${v}">${t}</button>`).join('')}</div></div>
+      <p class="muted small" id="optNow"></p>
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
+    const info = () => { const o = g.hh.world.opt || O; const menitPerDetik = 1 / (o.dayMul || 1); m.querySelector('#optNow').textContent = `Sekarang: energi ${o.energy ? 'aktif' : 'dimatikan'} · kebutuhan ${Math.round((o.decayMul ?? 1) * 100)}% · 1 detik nyata = ${menitPerDetik.toFixed(2)} menit game pada kecepatan normal (1 hari ≈ ${Math.round(1440 / menitPerDetik / 60)} menit nyata).`; };
+    info();
+    m.onclick = (e) => {
+      const b = e.target.closest('[data-e],[data-d],[data-t]'); if (!b) return;
+      const opt = b.dataset.e != null ? { energy: b.dataset.e === '1' } : b.dataset.d != null ? { decayMul: +b.dataset.d } : { dayMul: +b.dataset.t };
+      g.cmd({ c: 'opt', opt }); setTimeout(() => this.openOptions(), 200);
+    };
+  }
 
   // ---------- ngobrol bebas dengan AI Gemma (semua karakter) ----------
   persona(name) {
@@ -513,6 +536,7 @@ export class UI {
         <button class="btn" data-a="rush">🍛 Minigame: Nasi Padang Rush</button>
         <button class="btn" data-a="eggs">🥚 Jurnal Rahasia (easter egg)</button>
         <button class="btn" data-a="photo">📸 Mode Foto</button>
+        <button class="btn" data-a="opt">⚙️ Kenyamanan Main (energi, kebutuhan, panjang hari)</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
         <button class="btn ghost" data-a="unstuck">🔧 Lepas macet: ${esc(this.g.active)}</button>
         <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · ${this.g.slot && this.g.slot !== 'solo' ? 'Rumah berdua ' + esc(this.g.slot.slice(5)) + (this.g.isHost ? ' (kamu host)' : ' (tamu)') : 'Main sendiri'}${this.g.cloudState ? ' · ☁️ ' + esc(this.g.cloudState) : ''}</p>
@@ -527,6 +551,7 @@ export class UI {
       if (a.dataset.a === 'rush') { this.closeModal(); openRush(this); }
       if (a.dataset.a === 'eggs') { this.closeModal(); openEggs(this); }
       if (a.dataset.a === 'photo') { this.closeModal(); openPhoto(this); }
+      if (a.dataset.a === 'opt') { this.closeModal(); this.openOptions(); }
       if (a.dataset.a === 'savenow') { this.g.save(true); this.toast('Menyimpan… 💾', 'info'); }
       if (a.dataset.a === 'unstuck') { this.g.cmd({ c: 'unstuck' }); this.closeModal(); }
       if (a.dataset.a === 'tomenu') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 600); }

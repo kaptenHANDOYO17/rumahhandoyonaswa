@@ -34,6 +34,18 @@ vercel --prod
 
 
 
+
+## Update 9 — Kenyamanan Main (energi, kebutuhan, panjang hari)
+
+Menu (☰) → **⚙️ Kenyamanan Main**. Semua pengaturan berlaku untuk Handoyo & Naswa; hewan peliharaan tetap seperti biasa.
+
+- **⚡ Energi dimatikan (bawaan baru)** — karakter tidak pernah kecapekan atau pingsan, dan bar energi disembunyikan dari HUD. Tidur tetap bisa dilakukan untuk suasana: kalau tidur malam hari, mereka bangun sekitar pukul 05.30.
+- **🍛 Kebutuhan lain lebih tahan lama** — lapar, kebersihan, kamar kecil, sosial, dan hiburan bawaannya turun **50%** lebih lambat. Bisa diubah ke 100%, 70%, 50%, 30%, atau 15%.
+- **⏳ Panjang hari** — bawaannya **2× lebih lambat**, jadi satu hari game ≈ 48 menit nyata pada kecepatan normal (sebelumnya 24 menit). Pilihan: 1×, 1,5×, 2×, 3×, atau 4×.
+- Panel menampilkan ringkasan hitungan waktunya secara langsung, dan pilihan "Aktif (klasik)" tersedia kalau sewaktu-waktu ingin tantangan penuh lagi.
+
+Dengan pengaturan bawaan, kebutuhan turun sekitar **4× lebih lambat dibanding sebelumnya** (setengah laju, dalam hari yang dua kali lebih panjang), jadi ada banyak waktu untuk mengerjakan tugas harian.
+
 ## Update 8 — Obrolan Nyambung, Sawah di Belakang Rumah, Romansa Lebih Dalam
 
 ### 💬 Obrolan diperbaiki
