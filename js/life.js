@@ -6,6 +6,7 @@ import { TYPES, fmtRp, clamp } from './data.js';
 import { NPCS, STAFF } from './people.js';
 import { inviteGuest, GUEST_NAMES } from './people2.js';
 import { INTER } from './interactions.js';
+import { localSms } from './chatbrain.js';
 
 // ---------- interaksi kerja Handoyo (programmer) & studio Naswa ----------
 const dayOf = (c) => Math.floor(c.world.time / 1440), hourOf = (c) => (c.world.time % 1440) / 60;
@@ -101,12 +102,13 @@ export function installLife(hh) {
   const push = (contact, m) => { const W = W0(); const t = W.sms[contact] || (W.sms[contact] = []); t.push({ ...m, t: W.time }); if (t.length > 40) t.shift(); };
   hh.smsIn = (contact, text, notify = true) => { push(contact, { f: 'them', text }); const W = W0(); W.smsUnread[contact] = (W.smsUnread[contact] || 0) + 1; if (notify) { hh.sfx('sms'); hh.hooks.smsNotify && hh.hooks.smsNotify(contact, text); } };
   const reply = (contact, canned, ctx) => {
+    if (canned === 'Oke, siap!' || !canned) canned = localSms(hh, contact, (ctx && ctx.text) || '');
     hh.smsIn(contact, canned);
     const W = W0(); const t = W.sms[contact]; const idx = t.length - 1;
     if (hh.hooks.ai) {
       const d = NPCS[contact] || STAFF[contact] || {};
       const hist = t.slice(-6).map((m) => `${m.f === 'me' ? (m.from || 'Pemilik rumah') : contact}: ${m.text}`).join('\n');
-      hh.hooks.ai(`Kamu adalah ${contact} (${d.relation || d.trait || d.role || 'warga'}). Kamu membalas SMS dari ${ctx.from} (${ctx.from === 'Handoyo' ? 'programmer' : 'pelukis'}, pasangan suami-istri Handoyo & Naswa).\nRiwayat singkat:\n${hist}\nHasil yang sudah terjadi di game (wajib konsisten): ${ctx.outcome}\nTulis SATU balasan SMS singkat (maks 30 kata).`, 90)
+      hh.hooks.ai(`Kamu adalah ${contact} (${d.relation || d.trait || d.role || 'warga'}). Kamu membalas SMS dari ${ctx.from} (${ctx.from === 'Handoyo' ? 'programmer' : 'pelukis'}, pasangan suami-istri Handoyo & Naswa).\nRiwayat singkat:\n${hist}\nHasil yang sudah terjadi di game (wajib konsisten): ${ctx.outcome}\nTulis SATU balasan SMS singkat (maks 30 kata).\n\nTUGAS: balas SMS terakhir dari ${ctx.from} yaitu "${(ctx.text || '').slice(0, 200)}" secara LANGSUNG dan nyambung, maksimal 25 kata, gaya SMS santai, tetap sesuai karakter. Jangan menulis namamu di depan.`, 90)
         .then((txt) => { if (txt && W.sms[contact] && W.sms[contact][idx]) { W.sms[contact][idx].text = txt; W.sms[contact][idx].ai = true; hh.hooks.smsUpdate && hh.hooks.smsUpdate(contact); } });
     }
   };
@@ -140,7 +142,7 @@ export function installLife(hh) {
       else canned = pick(['Hehe iya, sehat-sehat ya kalian!', 'Wah, kapan-kapan ngopi bareng yuk.', 'Siap, nanti kukabari lagi.', 'Makasih udah ngabarin 😊']);
       W.nrel[contact] = clamp((W.nrel[contact] || 30) + 1, -100, 100);
     }
-    setTimeout(() => reply(contact, canned, { from: sim.name, outcome }), 600 + Math.random() * 900);
+    setTimeout(() => reply(contact, canned, { from: sim.name, outcome, text: String(text || '') }), 600 + Math.random() * 900);
   };
 
   // ---- belanja online ----

@@ -33,6 +33,31 @@ vercel --prod
 
 
 
+
+## Update 8 — Obrolan Nyambung, Sawah di Belakang Rumah, Romansa Lebih Dalam
+
+### 💬 Obrolan diperbaiki
+Penyebab jawaban ngawur: kunci AI belum diatur, sehingga game memakai kalimat cadangan acak.
+- Ditambahkan **otak obrolan bawaan** (`js/chatbrain.js`): tanpa API pun warga menjawab sesuai isi pertanyaan — jam, cuaca, musim, harga menu, iuran RT, utang Bang Jefri, hasil panen, lukisan Naswa, hewan peliharaan, sampai "lagi apa" dan "di mana".
+- Prompt untuk AI diperbaiki: sekarang menyertakan konteks waktu/cuaca dan perintah tegas untuk **menjawab pertanyaan terakhir secara langsung**.
+- Jendela obrolan menampilkan status: apakah sedang dijawab AI atau otak bawaan.
+- Balasan SMS juga memakai otak yang sama.
+
+### 🌾 Sawah & kebun luas di belakang rumah
+- Hamparan 120 × 62 meter: 3 petak **padi berair** (lengkap dengan pematang & saluran irigasi), bedeng **cabai** dan **tomat** berajir, kebun **pisang**, kebun **sawit**, dan ladang **jagung**.
+- Detail: gubuk/saung berlampu, 3 orang-orangan sawah, traktor tangan, jemuran gabah, karung panen, drum air, 16 ekor bebek berkeliaran, dan burung kuntul berputar di langit.
+- **10 petani** bekerja sungguhan sepanjang hari: membajak, menanam, mengatur air, memanen padi, merawat cabai, mengikat tomat, menebang tandan pisang, memilah sawit, dan menjemur gabah. Mereka berhenti saat hari gelap.
+- **Pak Tarno** membuka lapak hasil panen di pagar belakang: sayur sepaket, cabai & tomat, pisang sesisir, beras 5 kg, dan opsi **ikut turun ke sawah menanam padi** (dapat upah + sekantong sayur).
+- Semua tanaman digambar dengan instanced mesh agar tetap ringan di HP.
+
+### 💞 Romansa lebih dalam (tetap tertutup)
+- Interaksi baru **"Gendong pasangan ke kamar"** yang berlanjut ke momen berdua.
+- Saat momen berlangsung: **lampu kamar meredup jadi hangat kemerahan**, kelopak mawar beterbangan, dan layar privasi muncul.
+- **ART, tamu, dan tetangga otomatis menghormati privasi** — tidak ada yang masuk atau mengajak bicara.
+- Setelahnya keduanya berpelukan, mendapat moodlet, dan hubungan bertambah.
+
+> Catatan: adegan intim ditampilkan tertutup seperti di The Sims (fade & layar privasi), tanpa konten eksplisit.
+
 ## Update 7 — Easter Egg, Minigame & Polish
 
 - **10 easter egg tersembunyi** + jurnal rahasia (Menu → 🥚 Jurnal Rahasia) dengan petunjuk, bilah kemajuan, dan hadiah besar bila semuanya ditemukan.

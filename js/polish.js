@@ -35,8 +35,8 @@ export function buildPolish(game) {
 }
 export function spawnBurst(P, game, kind = 'konfeti', at = null) {
   const tg = at || game.controls.target;
-  const colors = kind === 'daun' ? ['#e07b39', '#c0392b', '#f1c40f', '#a0522d'] : ['#ff5252', '#ffd740', '#69f0ae', '#40c4ff', '#e040fb', '#ffffff'];
-  const n = kind === 'daun' ? 120 : 160;
+  const colors = kind === 'daun' ? ['#e07b39', '#c0392b', '#f1c40f', '#a0522d'] : kind === 'mawar' ? ['#e91e63', '#f06292', '#ad1457', '#ff8a80', '#ffffff'] : ['#ff5252', '#ffd740', '#69f0ae', '#40c4ff', '#e040fb', '#ffffff'];
+  const n = kind === 'daun' ? 120 : kind === 'mawar' ? 90 : 160;
   const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, transparent: true });
   const mesh = new THREE.InstancedMesh(P.burstGeo, mat, n); const col = new THREE.Color();
   const data = [];

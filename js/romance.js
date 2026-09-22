@@ -43,8 +43,22 @@ INTER.bercinta = {
     return true;
   },
   build: (c) => ({ steps: [{ ...step(c, 'Momen intim berdua'),
-    onStart: (x) => { const p = partnerOf(x.g, x.sim); if (p) { for (const q of [...p.queue]) if (q.started) x.g.endAction(p, q, true); p.queue = []; p.engagedBy = null; x.g.queueAct(p, 'bercintaP', x.obj.id); } x.g.toast(`💞 ${x.sim.name} & ${p ? p.name : ''} menikmati waktu berdua… (momen pribadi)`, 'good'); },
-    onDone: (x) => { const p = partnerOf(x.g, x.sim); for (const s of [x.sim, p]) if (s) { s.mood('bercinta'); s.addNeed('social', 40); s.addNeed('fun', 25); } x.g.op({ o: 'rel', d: 10 }); x.g.addFam(30); x.g.goal && x.g.goal('kiss'); } }] }),
+    onStart: (x) => { const p = partnerOf(x.g, x.sim); if (p) { for (const q of [...p.queue]) if (q.started) x.g.endAction(p, q, true); p.queue = []; p.engagedBy = null; x.g.queueAct(p, 'bercintaP', x.obj.id); }
+      x.g.world.privasi = x.g.world.time + 40;                       // ART, tamu & tetangga tidak masuk kamar
+      x.g.hooks.privasi && x.g.hooks.privasi(x.obj);                 // lampu diredupkan, lilin & kelopak mawar
+      x.g.toast(`💞 ${x.sim.name} & ${p ? p.name : ''} menutup pintu kamar. Jangan diganggu ya… (momen pribadi)`, 'good'); },
+    onDone: (x) => { const p = partnerOf(x.g, x.sim); for (const s of [x.sim, p]) if (s) { s.mood('bercinta'); s.addNeed('social', 40); s.addNeed('fun', 25); } x.g.op({ o: 'rel', d: 10 }); x.g.addFam(30); x.g.goal && x.g.goal('kiss');
+      x.g.world.privasi = x.g.world.time + 8;
+      setTimeout(() => { if (p && !p.queue.length && !x.sim.queue.length) x.g.queueSocial(x.sim, 'pelukSofa', p.name, 'social'); }, 300);
+      x.g.toast('💗 Suasana kamar hangat. Keduanya berpelukan sambil berbisik pelan lalu tertidur. Besok pagi sarapan bareng ya!', 'good'); } }] }),
+};
+INTER.gendongKamar = {
+  label: 'Gendong pasangan ke kamar 💞', icon: '👰',
+  check: (c) => { const p = partnerOf(c.g, c.sim); if (!p || p.hidden || p.away) return 'Pasangan sedang tidak di rumah'; if (!doubleBed(c.obj.type)) return 'Butuh kasur ganda'; return true; },
+  build: (c) => ({ steps: [
+    { target: { obj: c.obj.id }, anim: 'walk', dur: 3, label: 'Menggendong pasangan ke kamar', prop: null,
+      onStart: (x) => { const p = partnerOf(x.g, x.sim); if (p) { for (const q of [...p.queue]) if (q.started) x.g.endAction(p, q, true); p.queue = []; p.engagedBy = x.sim.name; p.anim = 'hug'; p.icon = '💞'; } x.g.toast(`${x.sim.name} menggendong pasangannya menuju kamar… 👰💞`, 'good'); },
+      onDone: (x) => { const p = partnerOf(x.g, x.sim); if (p) { p.engagedBy = null; p.icon = null; } x.g.queueAct(x.sim, 'bercinta', x.obj.id); } }] }),
 };
 INTER.bercintaP = { label: 'Menemani pasangan', icon: '💞', build: (c) => ({ steps: [step(c, 'Momen intim berdua')] }) };
 

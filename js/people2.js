@@ -218,6 +218,7 @@ function guestMinute(hh, m, hr, day) {
   if (g.stage === 2) {
     if (!idle(s)) return;
     if (m - g.t > 160) { hh.toast(`${g.name} pamit pulang. "Makasih ya, seneng banget main ke sini!" 👋`, 'good'); leaveGuest(hh, s, g); return; }
+    if ((W.privasi || 0) > W.time) return;                              // tamu tidak mengganggu privasi tuan rumah
     const r = Math.random();
     const h = hh.humans().find((x) => !x.hidden && !x.engagedBy && !x.queue.length && (x.lvl || 0) === 0);
     if (h && r < 0.35) { hh.queueSocial(s, 'npcChat', h.name, 'pair'); return; }

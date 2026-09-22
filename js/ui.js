@@ -11,6 +11,7 @@ import { PET_EMOJI, PET_LABEL, isBaby } from './pets.js';
 import { SoundFX } from './sound.js';
 import { Phone } from './phone.js';
 import { aiAsk, aiReady } from './ai.js';
+import { localReply } from './chatbrain.js';
 import { Acct, cloud, logout } from './account.js';
 import { NPCS as NPCS2, STAFF as STAFF2 } from './people.js';
 import { openStudio, openGallery } from './studio.js';
@@ -377,16 +378,17 @@ export class UI {
   openAIChat(name) {
     const me = this.g.active; const mem = (this.aiMem = this.aiMem || {}); const log = (mem[name] = mem[name] || []);
     const render = () => { const L = $('.aichat .log', this.root); if (!L) return; L.innerHTML = log.map((x) => `<div class="${x.me ? 'me' : 'them'}">${esc(x.text)}</div>`).join('') || `<p class="muted small">Mulai ngobrol dengan ${esc(name)}. ${aiReady() ? '🤖 Dijawab AI Gemma sesuai karakternya.' : 'ℹ️ AI Gemma belum aktif (atur di HP → AI Gemma), jadi jawabannya dialog bawaan.'}</p>`; L.scrollTop = 1e6; };
-    const m = this.modal(`<div class="aichat"><h2>💬 ${esc(me)} ↔ ${esc(name)}</h2><div class="log"></div><form><input maxlength="200" placeholder="Tulis pesan…" autocomplete="off"><button class="btn">Kirim</button></form><div class="mbtns row"><button class="btn ghost sm" data-close>Tutup</button></div></div>`);
+    const m = this.modal(`<div class="aichat"><h2>💬 ${esc(me)} ↔ ${esc(name)}</h2><div class="aiStat">${aiReady() ? '🤖 Dijawab AI (mengikuti karakter & keadaan game)' : '💬 Mode tanpa AI — jawaban dari otak bawaan game. Aktifkan AI lewat PANDUAN-SETUP.md agar obrolan lebih bebas.'}</div><div class="log"></div><form><input maxlength="200" placeholder="Tulis pesan…" autocomplete="off"><button class="btn">Kirim</button></form><div class="mbtns row"><button class="btn ghost sm" data-close>Tutup</button></div></div>`);
     render();
     m.querySelector('form').onsubmit = async (e) => {
       e.preventDefault(); const inp = m.querySelector('input'); const text = inp.value.trim(); if (!text) return; inp.value = '';
       log.push({ me: true, text }); render(); this.g.cmd({ c: 'say', text });
       const hist = log.slice(-10).map((x) => `${x.me ? me : name}: ${x.text}`).join('\n');
-      const prompt = `${this.persona(name)}\nKamu sedang ngobrol langsung dengan ${me}.\nRiwayat:\n${hist}\nBalas sebagai ${name}, 1-3 kalimat, natural, sesuai karakter. Jangan menulis nama di depan jawaban.`;
+      const W = this.g.hh.world; const konteks = `Konteks: hari ke-${Math.floor(W.time / 1440) + 1}, jam ${String(Math.floor((W.time % 1440) / 60)).padStart(2, '0')}.${String(Math.floor(W.time % 60)).padStart(2, '0')}, cuaca ${W.weather}, ${W.lastSeason ? 'musim ' + W.lastSeason : ''}.`;
+      const prompt = `${this.persona(name)}\n${konteks}\nKamu sedang mengobrol tatap muka dengan ${me}.\nRiwayat percakapan (paling bawah paling baru):\n${hist}\n\nTUGAS: jawab pesan terakhir dari ${me} yaitu "${text}" secara LANGSUNG dan NYAMBUNG. Kalau itu pertanyaan, jawab pertanyaannya dulu baru tambahkan satu kalimat obrolan. Maksimal 3 kalimat, bahasa Indonesia santai, tetap dalam karakter ${name}. Jangan menulis namamu di depan jawaban, jangan mengulang pertanyaannya.`;
       const typing = { me: false, text: '…' }; log.push(typing); render();
-      let reply = await aiAsk(prompt, 140).catch(() => null);
-      if (!reply) reply = ['Hehe iya, bener juga ya.', 'Wah, cerita dong lebih lanjut!', 'Aku setuju. Nanti kita ngopi bareng ya.', 'Hmm, aku mikir dulu deh.', 'Siap, makasih ya udah ngajak ngobrol 😊'][Math.floor(Math.random() * 5)];
+      let reply = await aiAsk(prompt, 200).catch(() => null);
+      if (!reply) reply = localReply(this.g.hh, name, text);
       typing.text = reply; render(); this.g.cmd({ c: 'npcSay', name, text: reply });
       if (log.length > 30) log.splice(0, log.length - 30);
     };

@@ -19,6 +19,7 @@ import './books2.js';
 import './books3.js';
 import './books4.js';
 import './padang.js';
+import './sawah.js';
 import { installEaster } from './easter.js';
 import { rushReward } from './minigame.js';
 import { people2Minute, guestDecision, ambientChatter } from './people2.js';

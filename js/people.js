@@ -192,6 +192,7 @@ function staffMinute(hh, m, hr) {
     }
     if (P.mode === 'leaving') { if (idle(s)) hideAt(s, SPAWN.W), P.mode = 'home'; continue; }
     if (!idle(s)) continue;
+    if ((W.privasi || 0) > W.time) { s.anim = 'idle'; continue; }      // menghormati privasi pasangan
     if ((P.cool || 0) > m) continue;
     if (!staffChore(hh, s, d)) { P.cool = m + 10; if (Math.random() < 0.3) { const spot = n === 'Pak Darto' ? [10 + Math.random() * 2, 8.5] : [5.5 + Math.random(), 5.2]; go(hh, s, spot[0], spot[1]); } }
   }

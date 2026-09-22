@@ -16,12 +16,13 @@ import { buildServiceFX, updateServiceFX } from './services.js';
 import { updateRomanceFX } from './romance.js';
 import { buildPadang, buildPadangObject, updatePadang, isPadangType } from './padang.js';
 import { buildPolish, updatePolish, spawnBurst, shake } from './polish.js';
+import { buildSawah, updateSawah, buildSawahObject, isSawahType } from './sawah.js';
 import { aiAsk, aiReady, AI } from './ai.js';
 import { NPCS } from './people.js';
 import { saveSlot, writeLocal, beaconSave, cloud } from './account.js';
 const RND = (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? (k === 'x' || k === 'z' || k === 'y' || k === 'yaw' || k === 'time' ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10) : v);
 const DYN = ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'moving', 'engagedBy', 'icon', 'say', 'lvl', 'away', 'snd', 'busyT', 'visit'];
-const mkObj = (o) => (isPadangType(o.type) ? buildPadangObject(o) : isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : isTownType(o.type) ? buildTownObject(o) : isCatalogType(o.type) ? buildCatalogObject(o) : buildObject(o));
+const mkObj = (o) => (isSawahType(o.type) ? buildSawahObject(o) : isPadangType(o.type) ? buildPadangObject(o) : isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : isTownType(o.type) ? buildTownObject(o) : isCatalogType(o.type) ? buildCatalogObject(o) : buildObject(o));
 import { TYPES, SIM_NAMES, GRID, LOT, HOUSE, PI } from './data.js';
 
 const SAVE_KEY = 'griyaasri-save-v1';
@@ -55,6 +56,7 @@ export class Game {
       eggFound: (id) => { shake(this.polishFX, 0.3); if (['upacara', 'daun'].includes(id)) spawnBurst(this.polishFX, this, id === 'daun' ? 'daun' : 'konfeti'); },
       leafBurst: () => spawnBurst(this.polishFX, this, 'daun'),
       confetti: () => spawnBurst(this.polishFX, this, 'konfeti'),
+      privasi: (bed) => { spawnBurst(this.polishFX, this, 'mawar', bed ? { x: bed.x, z: bed.z } : null); this.romanceGlow = 40; },
       ghost: () => { this.ghostT = 6; shake(this.polishFX, 0.25); },
       loanOffer: (o) => { this.ui.loanModal(o); this.send({ t: 'loan', o }); },
       loanClose: () => { this.ui.closeLoan(); this.send({ t: 'loanClose' }); },
@@ -91,7 +93,7 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
-    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
     this.ensureModels();
@@ -209,7 +211,7 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
-      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); this.updateArt(night);
+      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
     }
@@ -312,6 +314,8 @@ export class Game {
     const night = this.isNight() || (rain && dayF < 0.6);
     const pw = w.house.power;
     if (this.ghostT > 0) { this.ghostT -= dt; for (const L of W.interiorLights) if (L.lvl) { const on = Math.sin(this.ghostT * 34) > 0; L.light.intensity = on ? 4 : 0; L.lamp.material.emissiveIntensity = on ? 1.4 : 0; } }
+    if (this.romanceGlow > 0) { this.romanceGlow -= dt; this._rgReset = true; for (const L of W.interiorLights) if (!L.lvl) { L.light.intensity = 0.9 + Math.sin(t * 2) * 0.15; L.light.color.set('#ff8fb1'); L.lamp.material.emissiveIntensity = 0.5; } }
+    else if (this._rgReset) { this._rgReset = false; for (const L of W.interiorLights) L.light.color.set('#ffd9a0'); }
     for (const L of W.interiorLights) { if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; } L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0)); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
     for (const L of W.streetLamps) { if (L.isLight) L.intensity = night ? 18 : 0; else if (L.material) { L.material.emissive && L.material.emissive.set('#ffd27a'); L.material.emissiveIntensity = night ? 2 : 0; } }
     W.glassMat.emissiveIntensity = night && pw ? 0.55 : 0;
