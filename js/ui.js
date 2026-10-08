@@ -535,11 +535,23 @@ export class UI {
 
   // ---------- modal ----------
   modal(html, cls = '') {
-    const m = $('.modal', this.root); delete m.dataset.loan; delete m.dataset.kind; m.className = 'modal ' + cls; m.innerHTML = `<div class="mcard">${html}</div>`;
-    m.onclick = (e) => { if (e.target === m || e.target.closest('[data-close]')) this.closeModal(); };
+    const m = $('.modal', this.root); delete m.dataset.loan; delete m.dataset.kind;
+    m.className = 'modal ' + cls;
+    // tombol ✕ selalu ada, jadi jendela mana pun pasti bisa ditutup
+    m.innerHTML = `<div class="mcard"><button class="mx" data-close title="Tutup (Esc)">✕</button>${html}</div>`;
+    m.onclick = null;                       // bersihkan penangan khusus jendela sebelumnya
+    // Penangan TUTUP dipasang sekali lewat addEventListener supaya tidak pernah bisa
+    // tertimpa oleh `m.onclick = ...` milik jendela mana pun. Dulu Bursa Kripto &
+    // Kenyamanan Main menimpanya, akibatnya tombol Tutup mati dan game seperti membeku.
+    if (!m._tutupSiap) {
+      m._tutupSiap = true;
+      m.addEventListener('click', (e) => { if (e.target === m || e.target.closest('[data-close]')) this.closeModal(); });
+    }
+    this.modalOpen = true; document.body.classList.add('ada-modal');
     return m;
   }
-  closeModal() { $('.modal', this.root).classList.add('hidden'); }
+  closeModal() { $('.modal', this.root).classList.add('hidden'); this.modalOpen = false; document.body.classList.remove('ada-modal'); }
+  modalTerbuka() { const m = $('.modal', this.root); return !!(m && !m.classList.contains('hidden')); }
   openMenu() {
     const g = this.g;
     const m = this.modal(`<h2>Menu</h2>

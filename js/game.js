@@ -220,13 +220,44 @@ export class Game {
   //  Loop
   // ------------------------------------------------------------
   frame() {
+    // Pengaman: apa pun yang gagal di dalam satu frame TIDAK boleh menghentikan
+    // render. Dulu satu lemparan galat membuat seluruh layar membeku —
+    // kamera, karakter, semuanya — dan pemain mengira gamenya hang.
+    try { this.frameDalam(); } catch (e) { this.laporGalat('frame', e); }
+    try {
+      if (this.ui.studioOpen && !document.querySelector('.studio, .rush')) this.ui.studioOpen = false;  // jendela lukis/minigame sudah hilang tapi bendera tertinggal
+      if (!this.ui.studioOpen) this.renderer.render(this.scene, this.camera);
+    } catch (e) { this.laporGalat('render', e); }
+  }
+  // tampilkan galat sekali, lalu biarkan game lanjut
+  laporGalat(di, e) {
+    const pesan = `${di}: ${(e && e.message) || e}`;
+    if (this._galatTerakhir === pesan) { this._galatUlang = (this._galatUlang || 0) + 1; return; }
+    this._galatTerakhir = pesan; this._galatUlang = 0;
+    console.error('[Griya Asri]', di, e);
+    try {
+      document.querySelector('.galat') && document.querySelector('.galat').remove();
+      const el = document.createElement('div'); el.className = 'galat';
+      el.innerHTML = `<span>⚠️ Ada bagian yang gagal dijalankan, tapi game tetap berjalan.<br><code></code></span><button>Tutup</button>`;
+      el.querySelector('code').textContent = pesan;
+      el.querySelector('button').onclick = () => el.remove();
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 15000);
+    } catch (x) { /* abaikan */ }
+    // jangan biarkan POV jadi penyebab galat berulang
+    if (/pov|kamera/i.test(di) && this.pov) { try { keluarPOV(this); } catch (x) { this.pov = false; this.controls.enabled = true; } }
+  }
+  frameDalam() {
     const now = performance.now(); const raw = Math.min(0.5, Math.max(0, (now - this.lastT) / 1000)); const dt = Math.min(0.05, raw); this.lastT = now;
     const hh = this.hh, W = hh.world;
-    if (this.isHost && !this.pausedByUI()) { let r = raw; while (r > 0) { const st = Math.min(0.05, r); hh.tick(st); r -= st; } }
-    else if (this.isHost) hh.tick(0);
+    // simulasi dunia juga dibungkus: kalau satu kejadian gagal, dunia tetap berjalan
+    try {
+      if (this.isHost && !this.pausedByUI()) { let r = raw; while (r > 0) { const st = Math.min(0.05, r); hh.tick(st); r -= st; } }
+      else if (this.isHost) hh.tick(0);
+    } catch (e) { this.laporGalat('simulasi', e); }
     this.syncObjects(); this.syncDirt(); this.updateGrass();
     const mul = W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed]);
-    if (this.pov) updatePOV(this, dt); else this.updateCamera(dt);
+    if (this.pov) { try { updatePOV(this, dt); } catch (e) { this.laporGalat('pov', e); } } else this.updateCamera(dt);
     this.ensureModels();
     const act = this.hh.sims[this.active]; if (act && (act.lvl || 0) !== this._lastActLvl) { this._lastActLvl = act.lvl || 0; this.followLvl = true; }
     if (act && (act.lvl || 0) !== this.viewLvl && this.followLvl !== false && !act.hidden && !this.buy) this.setView(act.lvl || 0);
@@ -263,9 +294,8 @@ export class Game {
     }
     this.saveT += dt; if (this.saveT > 12) { this.saveT = 0; this.save(false); }
     this.ulangT = (this.ulangT || 0) + dt; if (this.ulangT > 45) { this.ulangT = 0; if (adaTunda()) kirimUlangTunda(); }
-    this.ui.frame(dt);
+    try { this.ui.frame(dt); } catch (e) { this.laporGalat('tampilan', e); }
     if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
-    if (!this.ui.studioOpen) this.renderer.render(this.scene, this.camera);
   }
   pausedByUI() { return false; }
   isNight() { const h = (this.hh.world.time % 1440) / 60; return h < 6.2 || h > 17.9; }
@@ -402,20 +432,30 @@ export class Game {
     });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      const k = e.key.toLowerCase(); this.keys[k] = true;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+      const k = e.key.toLowerCase();
+      // studio lukis / minigame menutupi layar penuh dan punya tombolnya sendiri:
+      // semua tombol permainan dimatikan supaya karakter tidak berjalan sendiri
+      // lalu membatalkan kegiatannya di tengah jalan.
+      if (this.ui.studioOpen) { this.keys = {}; return; }
+      // Esc selalu bisa menutup jendela yang terbuka — pengaman terakhir
+      if (k === 'escape') { if (this.ui.modalTerbuka && this.ui.modalTerbuka()) { this.ui.closeModal(); return; } this.ui.closeMenu(); if (this.buy) this.cancelGhost(); if (this.pov) aksiKamera(this, 'pov'); return; }
+      if (this.ui.modalTerbuka && this.ui.modalTerbuka()) { this.keys = {}; return; }
+      if (e.repeat) return;                 // tahan tombol tidak boleh memicu aksi berulang (dulu POV bisa aktif berkali-kali)
+      this.keys[k] = true;
       if (k === ' ') { e.preventDefault(); this.cmd({ c: 'speed', v: this.hh.world.speed === 0 ? (this.lastSpeed || 1) : 0 }); if (this.hh.world.speed) this.lastSpeed = this.hh.world.speed; }
       if (k === '1' || k === '2' || k === '3') this.cmd({ c: 'speed', v: +k });
       if (k === '0') this.cmd({ c: 'speed', v: 0 });
       if (k === 'tab') { e.preventDefault(); this.switchSim(); }
       if (k === 'b') this.ui.toggleBuy();
-      if (k === 'escape') { this.ui.closeMenu(); if (this.buy) this.cancelGhost(); }
       if (k === 'r' && this.buy && this.buy.ghost) this.rotateGhost();
       if (k === 'f') this.follow = !this.follow;
       if (k === 'c') this.ui.cycleWalls();
       if (k === 'v') { e.preventDefault(); aksiKamera(this, 'pov'); }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
+    // tombol gerak boleh ditahan: keydown berulang tetap menandai tombol aktif
+    window.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return; if (this.ui.studioOpen || (this.ui.modalTerbuka && this.ui.modalTerbuka())) return; const k = e.key.toLowerCase(); if ('wasdqe'.includes(k) || k.startsWith('arrow')) this.keys[k] = true; });
     window.addEventListener('blur', () => { this.keys = {}; });
   }
   switchSim(name) {

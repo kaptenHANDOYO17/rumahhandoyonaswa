@@ -38,6 +38,44 @@ vercel --prod
 
 
 
+## Update 11.1 — Perbaikan Bug: Tombol Tutup, Macet Setelah Melukis, dan Jaring Pengaman
+
+### 🔴 Penyebab "tombol Tutup tidak bisa diklik"
+Jendela **Bursa Kripto** dan **Kenyamanan Main** menimpa penangan klik milik jendela
+(`m.onclick = ...`), sehingga tombol **Tutup** dan klik latar ikut mati. Karena jendela
+menutupi seluruh layar, seluruh game jadi terasa membeku padahal masih berjalan.
+
+- Penangan tutup sekarang dipasang dengan `addEventListener` dan **tidak bisa ditimpa** oleh jendela mana pun.
+- Setiap jendela otomatis punya tombol **✕** di pojok kanan atas.
+- Tombol **Esc** juga selalu menutup jendela yang terbuka.
+
+### 🔴 Penyebab "setelah melukis tidak bisa gerak & kamera mati"
+1. Saat studio lukis terbuka, tombol **WASD** masih tembus ke game — karakter berjalan
+   pergi dan kegiatan melukisnya batal di tengah jalan.
+2. Menahan tombol **V** memicu POV berkali-kali (keydown berulang), sampai keadaan kamera kacau.
+3. Satu galat JavaScript di dalam satu frame **menghentikan seluruh render** — layar beku total.
+
+Perbaikannya:
+- Membuka studio lukis / minigame **otomatis mematikan POV** dan mengunci tombol permainan.
+- Menahan V tidak lagi memicu POV berulang; POV juga ditolak kalau ada jendela terbuka.
+- `Esc` menutup studio lukis.
+- Bendera `studioOpen` dipulihkan sendiri kalau jendelanya hilang tanpa sempat menutup rapi.
+
+### 🛡️ Jaring pengaman: satu galat tidak boleh lagi membekukan game
+Simulasi, kamera/POV, tampilan, dan render masing-masing dibungkus pengaman.
+Kalau ada yang gagal, pemain melihat pesan merah kecil di bawah layar dan
+**game tetap berjalan**. Pengaman ini langsung menangkap satu bug asli:
+aksi "melukis sendiri" bisa melempar galat kalau easel-nya tidak ikut terkirim —
+akarnya sudah diperbaiki, dan sekarang penyusunan aksi apa pun yang gagal
+dibatalkan dengan rapi, bukan menjatuhkan seluruh dunia.
+
+### ✅ Semua tombol diuji otomatis
+Uji otomatis mengklik seluruh tombol HUD: 11 tombol rail mode, 13 isi menu ☰,
+7 tombol kamera, mode Beli (kategori, pilih barang, putar, batal, taruh berulang,
+selesai), potret & Auto/Manual, lipat panel, chat, kecepatan 0–3, pindah lantai,
+mode dinding, 7 tab panel, dan chip musim. **Semua berfungsi dan setiap jendela
+bisa ditutup** (✕, "Tutup", dan Esc).
+
 ## Update 11 — Satu Dunia Berdua, Progres Anti-Hilang, Kamera & POV Orang Pertama
 
 ### 🏡 Satu dunia saja, peran terkunci ke akun

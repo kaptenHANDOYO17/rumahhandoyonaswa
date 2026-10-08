@@ -5,6 +5,7 @@
 // ============================================================
 import { TYPES, fmtRp } from './data.js';
 import { INTER } from './interactions.js';
+import { keluarPOV } from './kamera.js';
 
 export const LAUK = [
   { k: 'rendang', n: 'Rendang', c: '#4a2313', e: '🥩', harga: 15000 },
@@ -41,7 +42,10 @@ export function openRush(ui) {
     <header><b>🍛 Nasi Padang Rush</b><span id="rsInfo"></span><button class="btn ghost sm" id="rsHelp">❔ Cara main</button><button class="btn ghost sm" id="rsX">✕ Keluar</button></header>
     <canvas id="rsC" width="900" height="540"></canvas>
     <div class="rushBar" id="rsBar"></div></div>`;
-  document.body.appendChild(wrap); ui.studioOpen = true;
+  // POV harus dimatikan dulu: kalau tidak, tombol WASD saat menggambar membuat
+  // karakter berjalan pergi dan kegiatannya batal di tengah jalan.
+  if (ui.g && ui.g.pov) { try { keluarPOV(ui.g); } catch (e) { ui.g.pov = false; } }
+  document.body.appendChild(wrap); ui.studioOpen = true; ui.g && (ui.g.keys = {});
   const c = wrap.querySelector('#rsC'), x = c.getContext('2d');
   const state = { mode: 'intro', lv, t: 0, uang: 0, kombo: 0, komboMax: 0, kabur: 0, cust: [], piring: [], fx: [], last: performance.now(), sisa: 0, totalRp: 0, sempurna: true, pause: false };
 

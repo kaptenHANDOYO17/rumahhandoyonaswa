@@ -4,11 +4,19 @@
 //  lalu bisa dijual di toko online.
 // ============================================================
 import { INTER } from './interactions.js';
+import { keluarPOV } from './kamera.js';
 
+const easelTerdekat = (c) => {
+  const o = (c.world.objects || []).filter((x) => x.type === 'easel');
+  if (!o.length) return null;
+  return o.sort((a, b2) => Math.hypot(a.x - c.sim.x, a.z - c.sim.z) - Math.hypot(b2.x - c.sim.x, b2.z - c.sim.z))[0];
+};
 Object.assign(INTER, {
   paintManual: { label: 'Melukis sendiri (studio manual)…', icon: '🖌️', ui: 'studio',
-    check: (c) => (c.sim.species === 'human' ? true : 'Hanya manusia'),
-    build: (c) => ({ steps: [{ target: { obj: c.obj.id }, anim: 'paint', prop: 'brushPaint', dur: 720, snd: 'brush', label: 'Melukis di studio', eff: { fun: 0.9 }, onTick: (x, gm) => x.sim.xp('kreatif', gm * 0.35) }] }) },
+    // kalau easel-nya tidak ikut dikirim, cari easel terdekat; jangan sampai melempar galat
+    check: (c) => (c.sim.species !== 'human' ? 'Hanya manusia' : (c.obj || easelTerdekat(c)) ? true : 'Belum ada easel di rumah'),
+    build: (c) => { const o = c.obj || easelTerdekat(c); return { steps: [{ target: { obj: o.id }, anim: 'paint', prop: 'brushPaint', dur: 720, snd: 'brush', label: 'Melukis di studio', eff: { fun: 0.9 }, onTick: (x, gm) => x.sim.xp('kreatif', gm * 0.35) }] }; },
+  },
 });
 // lukisan otomatis (kalau Naswa melukis sendiri tanpa dikendalikan)
 if (INTER.paint) {
@@ -83,7 +91,10 @@ export function openStudio(ui, cmd) {
         <div class="stFx"><b>Sentuhan akhir</b><label><input type="checkbox" id="fxVig" checked> Vinyet</label><label><input type="checkbox" id="fxWarm"> Hangat</label><label><input type="checkbox" id="fxGrain" checked> Tekstur</label><label><input type="checkbox" id="fxVarnish" checked> Pernis (kontras)</label></div>
       </aside>
     </div></div>`;
-  document.body.appendChild(wrap); ui.studioOpen = true;
+  // POV harus dimatikan dulu: kalau tidak, tombol WASD saat menggambar membuat
+  // karakter berjalan pergi dan kegiatannya batal di tengah jalan.
+  if (ui.g && ui.g.pov) { try { keluarPOV(ui.g); } catch (e) { ui.g.pov = false; } }
+  document.body.appendChild(wrap); ui.studioOpen = true; ui.g && (ui.g.keys = {});
   const view = wrap.querySelector('#stView'), over = wrap.querySelector('#stOver'), vctx = view.getContext('2d'), octx = over.getContext('2d');
   const bgC = document.createElement('canvas'); bgC.width = W; bgC.height = H; paintBg(bgC.getContext('2d'), W, H, st.bg);
   const layers = [0, 1, 2].map(() => { const c = document.createElement('canvas'); c.width = W; c.height = H; return { c, x: c.getContext('2d', { willReadFrequently: true }), vis: true, op: 1 }; });
@@ -206,7 +217,7 @@ export function openStudio(ui, cmd) {
   };
   view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
   const info = () => { wrap.querySelector('#stInfo').textContent = `${strokes} goresan · ${used.size} warna · ${brushes.size} alat · ${Math.round((performance.now() - t0) / 1000)} dtk`; };
-  const key = (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(undo, redo); } if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); doUndo(redo, undo); } if (e.key === '[') { st.size = Math.max(1, st.size - 3); wrap.querySelector('#stSize').value = st.size; } if (e.key === ']') { st.size = Math.min(140, st.size + 3); wrap.querySelector('#stSize').value = st.size; } };
+  const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); wrap.querySelector('[data-a="close"]').click(); return; } if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); doUndo(undo, redo); } if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); doUndo(redo, undo); } if (e.key === '[') { st.size = Math.max(1, st.size - 3); wrap.querySelector('#stSize').value = st.size; } if (e.key === ']') { st.size = Math.min(140, st.size + 3); wrap.querySelector('#stSize').value = st.size; } };
   window.addEventListener('keydown', key);
   const close = () => { window.removeEventListener('keydown', key); wrap.remove(); ui.studioOpen = false; };
   wrap.querySelector('[data-a="undo"]').onclick = () => doUndo(undo, redo);

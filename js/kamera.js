@@ -92,8 +92,11 @@ export function aksiKamera(g, aksi, dariTombol) {
 
 // ---------------- POV orang pertama ----------------
 export function masukPOV(g) {
+  if (g.pov) return;                                  // sudah di POV: jangan dobel (dulu tombol V ditahan bisa memicu berkali-kali)
+  if (g.ui.studioOpen || (g.ui.modalTerbuka && g.ui.modalTerbuka())) { g.ui.toast('Tutup dulu jendela yang terbuka sebelum masuk POV.', 'info'); return; }
+  if (g.buy) { g.ui.toast('Keluar dari mode Beli dulu, baru masuk POV.', 'info'); return; }
   const s = g.hh.sims[g.active];
-  if (!s || s.isPet) { g.ui.toast('POV orang pertama hanya untuk Handoyo & Naswa — pilih karakternya dulu.', 'info'); return; }
+  if (!s || s.isPet || !g.models[g.active]) { g.ui.toast('POV orang pertama hanya untuk Handoyo & Naswa — pilih karakternya dulu.', 'info'); return; }
   g.pov = true;
   g.povYaw = s.yaw || 0; g.povPitch = -0.02;
   g._simpanKam = { pos: g.camera.position.clone(), target: g.controls.target.clone(), fov: g.camera.fov, dinding: g.wallMode, ikut: g.follow };
@@ -108,7 +111,9 @@ export function masukPOV(g) {
   gambarPanel(g.ui); g.ui.refresh();
 }
 export function keluarPOV(g) {
+  if (!g.pov) return;
   g.pov = false;
+  g.tekanKam = {}; g.keys = {};
   const K = g._simpanKam;
   g.controls.enabled = true;
   g.camera.fov = K ? K.fov : 42; g.camera.near = 0.1; g.camera.updateProjectionMatrix();
@@ -148,7 +153,6 @@ export function updatePOV(g, dt) {
       g._povJalan = 1.2;
     }
   }
-  if (g._povJalan > 0) { g._povJalan -= dt; if (g._povJalan <= 0 && !maju && !samping) g.cmd({ c: 'cancel' }); }
   // ---- taruh kamera di kepala ----
   if (m.head) m.head.getWorldPosition(V); else V.set(m.root.position.x, m.root.position.y + 1.6, m.root.position.z);
   V.y += 0.08;

@@ -587,7 +587,18 @@ export class Household {
     const c = this.ctx(sim, a.obj, a.extra);
     const ok = I.check ? I.check(c) : true;
     if (ok !== true || (a.objId != null && !a.obj)) { if (typeof ok === 'string') this.toast(`${sim.name}: ${ok}`, 'bad'); sim.queue.shift(); return; }
-    const b = I.build(c);
+    // Menyusun langkah aksi TIDAK boleh melempar galat. Kalau bendanya hilang
+    // (dijual, dipindah, atau aksi dipanggil tanpa objek), aksinya dibatalkan
+    // dengan rapi — dulu galat di sini menjatuhkan seluruh simulasi dan game
+    // terlihat membeku total.
+    let b;
+    try { b = I.build(c); } catch (e) {
+      console.warn('[Griya Asri] aksi gagal disiapkan:', a.key, e);
+      sim.queue.shift(); this.release(sim);
+      this.toast(`${sim.name}: "${a.label || a.key}" dibatalkan — bendanya tidak ada lagi.`, 'bad');
+      return;
+    }
+    if (!b || !Array.isArray(b.steps) || !b.steps.length) { sim.queue.shift(); this.release(sim); return; }
     a.steps = b.steps; a.si = -1; a.x = c; a.x.a = {};
     this.nextStep(sim, a);
   }
