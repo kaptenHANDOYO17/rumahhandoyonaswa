@@ -7,6 +7,7 @@ import {
   MOOD_LEVELS, REL_LEVELS, FAMILY_LEVELS, GOAL_POOL, DAY_NAMES, START_MONEY, START_TIME, WALLS, FENCES,
   TREES, LOT, HOUSE, DOORS, SIM_NAMES, PI, fmtRp, clamp,
 } from './data.js';
+import { otakPasangan } from './pasangan.js';
 import { INTER, SOCIAL } from './interactions.js';
 import { NavGrid } from './path.js';
 import { PETS, PET_SELF, PAIR, pairMatch, PET_OBJECTS, petDefaultState, PET_DECAY, petAutonomy, PET_EMOJI } from './pets.js';
@@ -20,6 +21,7 @@ import './books3.js';
 import './books4.js';
 import './padang.js';
 import './sawah.js';
+import { installCrypto } from './crypto.js';
 import { installEaster } from './easter.js';
 import { rushReward } from './minigame.js';
 import { people2Minute, guestDecision, ambientChatter } from './people2.js';
@@ -145,13 +147,13 @@ export class Sim {
     return {
       x: this.x, z: this.z, y: this.y, yaw: this.yaw, anim: this.anim, prop: this.prop, hidden: this.hidden, seatH: this.seatH,
       needs: this.needs, skills: this.skills, moods: this.moods, prof: this.prof, outfit: this.outfit, goals: this.goals,
-      autonomy: this.autonomy, moving: this.moving, engagedBy: this.engagedBy, icon: this.icon, say: this.say,
+      autonomy: this.autonomy, dijalankanKomputer: this.dijalankanKomputer, moving: this.moving, engagedBy: this.engagedBy, icon: this.icon, say: this.say,
       species: this.species, wallet: this.wallet, bond: this.bond, hat: this.hat, lvl: this.lvl, sex: this.sex, coat: this.coat, bornAt: this.bornAt, mom: this.mom, pregUntil: this.pregUntil, away: this.away, visit: this.visit || null, snd: this.snd, role: this.role, fam: this.fam, busyT: this.busyT,
       queue: this.queue.map((q) => ({ id: q.id, label: q.label, icon: q.icon, started: !!q.started, step: q.stepLabel || null })),
     };
   }
   load(p) {
-    for (const k of ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'seatH', 'needs', 'skills', 'moods', 'prof', 'outfit', 'goals', 'autonomy', 'moving', 'engagedBy', 'icon', 'say', 'wallet', 'bond', 'hat', 'lvl', 'sex', 'coat', 'bornAt', 'mom', 'pregUntil', 'away', 'snd', 'role', 'fam', 'busyT', 'visit']) if (p[k] !== undefined) this[k] = p[k];
+    for (const k of ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'seatH', 'needs', 'skills', 'moods', 'prof', 'outfit', 'goals', 'autonomy', 'dijalankanKomputer', 'moving', 'engagedBy', 'icon', 'say', 'wallet', 'bond', 'hat', 'lvl', 'sex', 'coat', 'bornAt', 'mom', 'pregUntil', 'away', 'snd', 'role', 'fam', 'busyT', 'visit']) if (p[k] !== undefined) this[k] = p[k];
   }
 }
 
@@ -333,7 +335,9 @@ export class Household {
     const weekend = day % 7 >= 5;
     const pool = GOAL_POOL.filter((g) => !(weekend && g.key === 'work'));
     const pick = [];
-    while (pick.length < 3) { const g = pool[Math.floor(Math.random() * pool.length)]; if (!pick.includes(g)) pick.push(g); }
+    let coba = 0;
+    while (pick.length < 3 && coba++ < 200) { const g = pool[Math.floor(Math.random() * pool.length)]; if (g && !pick.includes(g)) pick.push(g); }
+    if (!pick.length) pick.push(...pool.slice(0, 3));
     sim.goals = pick.map((g) => ({ key: g.key, label: g.label, need: g.need, prog: 0, done: false }));
   }
   removeDirt(id) { this.world.dirt = this.world.dirt.filter((d) => d.id !== id); this.world.dirtVer++; }
@@ -373,6 +377,7 @@ export class Household {
       case 'unstuck': return this.unstuck(sim);
       case 'opt': { const W = this.world; W.opt = { ...W.opt, ...(c.opt || {}) }; if (!W.opt.energy) for (const h of this.humans()) h.needs.energy = 100;
         this.toast(`⚙️ Pengaturan diperbarui — energi ${W.opt.energy ? 'aktif' : 'dimatikan'}, kebutuhan ${Math.round(W.opt.decayMul * 100)}%, hari ${W.opt.dayMul}× lebih panjang`, 'info'); return; }
+      case 'crypto': return this.cryptoCmd && this.cryptoCmd(c);
       case 'egg': return this.easter && this.easter(c.t, { ...(c.d || {}), sim });
       case 'rush': return rushReward(this, { ...c, sim: c.sim });
       case 'season': { const L = ['salju', 'hujan', 'panas', 'gugur'].includes(c.lock) ? c.lock : null; this.world.seasonLock = L; this.world.weather = 'cerah'; this.world.weatherLeft = 0; this.toast(L ? `🔒 Musim dikunci: ${L}` : '🔄 Musim kembali mengikuti kalender', 'info'); return; }
@@ -723,7 +728,11 @@ export class Household {
     if (gm > 0) {
       W.time += gm;
       const m = Math.floor(W.time);
-      while (this.lastMin < m) { this.lastMin++; this.visitMinute(); if (this.seasonMinute) { this.seasonMinute(this.lastMin); this.servicesMinute(this.lastMin); this.romanceMinute(this.lastMin); this.easterMinute(this.lastMin); } this.minuteEvents(this.lastMin); peopleMinute(this, this.lastMin); people2Minute(this, this.lastMin); this.births(); if (this.lastMin % 60 === 0) this.lifeHour(Math.floor((this.lastMin % 1440) / 60)); if (this.lastMin % 23 === 0 && this.hooks.chatter) ambientChatter(this, this.hooks.chatter()); }
+      // batasi menyusul waktu: kalau tab lama tidak aktif, lompati sisanya daripada membeku
+      if (m - this.lastMin > 2880) { this.lastMin = m - 60; W.lompatWaktu = (W.lompatWaktu || 0) + 1; }
+      let putaran = 0;
+      while (this.lastMin < m && putaran++ < 1500) { this.lastMin++; this.visitMinute(); if (this.seasonMinute) { this.seasonMinute(this.lastMin); this.servicesMinute(this.lastMin); this.romanceMinute(this.lastMin); this.easterMinute(this.lastMin); } this.minuteEvents(this.lastMin); peopleMinute(this, this.lastMin); people2Minute(this, this.lastMin); this.births(); if (this.lastMin % 60 === 0) this.lifeHour(Math.floor((this.lastMin % 1440) / 60)); if (this.lastMin % 23 === 0 && this.hooks.chatter) ambientChatter(this, this.hooks.chatter()); }
+      if (this.lastMin < m) this.lastMin = m;   // sisa menit dilewati, jam tetap akurat
       this.continuous(gm);
     }
     for (const s of sims) this.tickSim(s, dtReal, gm, mul);
@@ -808,6 +817,7 @@ export class Household {
     }
     if (min % 60 === 0) {
       // cuaca
+      if (this.cryptoHour) this.cryptoHour(hr);
       if (this.seasonHour) this.seasonHour(hr);
       else if (W.weather === 'hujan') { W.rainLeft--; if (W.rainLeft <= 0) { W.weather = 'cerah'; this.toast('Hujan reda 🌤️', 'info'); } }
       else if (Math.random() < (hr >= 13 && hr <= 18 ? 0.09 : 0.03)) { W.weather = 'hujan'; W.rainLeft = 1 + Math.floor(Math.random() * 3); this.toast('Hujan turun... jemuran aman? 🌧️', 'info'); }
@@ -888,7 +898,7 @@ export class Household {
       if (V.stage === 2 && !sim.queue.length) sim.visit = null;
     }
   }
-  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); }
+  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); installCrypto(this); }
   births() {
     for (const f of this.pets()) {
       if (!f.pregUntil || this.world.time < f.pregUntil) continue;
@@ -925,7 +935,7 @@ export class Household {
     if (!a) {
       sim.moving = false; if (!sim.queue.length) { sim.anim = 'idle'; sim.prop = null; }
       if (sim.queue.length) { this.startAction(sim, sim.queue[0]); a = sim.cur; }
-      else { sim.idleT += gm; if (sim.autonomy && (sim.isPet || sim.species === 'human') && sim.idleT > (sim.isPet ? 12 : 25)) { sim.idleT = 0; if (sim.isPet) petAutonomy(this, sim); else this.autonomy(sim); } return; }
+      else { sim.idleT += gm; if (sim.autonomy && (sim.isPet || sim.species === 'human') && sim.idleT > (sim.isPet ? 12 : sim.dijalankanKomputer ? 8 : 25)) { sim.idleT = 0; if (sim.isPet) petAutonomy(this, sim); else { let sudah = false; if (sim.dijalankanKomputer) { try { sudah = otakPasangan(this, sim); } catch (e) { sudah = false; } } if (!sudah) this.autonomy(sim); } } return; }
       if (!a) return;
     }
     if (a.kind === 'social' && a.phase === 'do') { sim.moving = false; return this.tickSocial(sim, a, gm); }
@@ -1073,8 +1083,32 @@ export class Household {
     for (const n in s.others || {}) { if (!this.others[n]) this.others[n] = new Sim(n, this, s.others[n].species); this.others[n].load(s.others[n]); this.others[n].queue = s.others[n].queue; }
     if (s.world.objVer !== prevObjVer) this.rebuildNav();
   }
-  saveData() { const snap = JSON.parse(JSON.stringify(this.snapshot())); for (const n in snap.sims) snap.sims[n].queue = []; delete snap.others; snap.v = 4; snap.gallery = this.gallery || []; return snap; }
-  loadSave(s) {
+  // Progres HARUS tetap kecil: gambar lukisan (base64) disimpan terpisah di galeri,
+  // di sini hanya keterangannya. Tanpa ini simpanan membengkak sampai server menolak
+  // (itu penyebab "progres tidak tersimpan" setelah beberapa puluh hari bermain).
+  saveData() {
+    this.rapikanDunia();
+    const snap = JSON.parse(JSON.stringify(this.snapshot()));
+    for (const n in snap.sims) snap.sims[n].queue = [];
+    delete snap.others; snap.v = 5;
+    snap.gallery = (this.gallery || []).slice(0, 24).map((p) => ({ ...p, img: null }));
+    return snap;
+  }
+  // batasi semua daftar yang tumbuh tanpa henti supaya ukuran simpanan stabil selamanya
+  rapikanDunia() {
+    const W = this.world;
+    if (Array.isArray(W.log) && W.log.length > 14) W.log.length = 14;
+    if (W.crypto) {
+      if (Array.isArray(W.crypto.log) && W.crypto.log.length > 40) W.crypto.log.length = 40;
+      for (const k in W.crypto.riwayat || {}) { const r = W.crypto.riwayat[k]; if (Array.isArray(r) && r.length > 240) W.crypto.riwayat[k] = r.slice(-240); }
+    }
+    for (const k in W.sms || {}) { const t = W.sms[k]; if (Array.isArray(t) && t.length > 30) W.sms[k] = t.slice(-30); }
+    if (Array.isArray(W.dirt) && W.dirt.length > 12) W.dirt.length = 12;
+    if (Array.isArray(W.pesanan) && W.pesanan.length > 20) W.pesanan = W.pesanan.slice(-20);
+    if (Array.isArray(W.paket) && W.paket.length > 20) W.paket = W.paket.slice(-20);
+    if (this.gallery && this.gallery.length > 24) this.gallery = this.gallery.slice(0, 24);
+  }
+  loadSave(s, galeriLuar) {
     this.world = s.world; this.world.speed = 1;
     if (!s.v || s.v < 2) {
       let id = this.world.nextId; for (const [type, x, z, rot] of PET_OBJECTS) if (!this.world.objects.some((o) => o.type === type)) this.world.objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
@@ -1089,6 +1123,12 @@ export class Household {
       this.world.nextId = id2; this.world.objVer++;
     }
     this.gallery = s.gallery || [];
+    // gambar lukisan disimpan terpisah (galeri). Gabungkan kembali ke keterangannya.
+    if (galeriLuar && galeriLuar.length) {
+      const peta = new Map(galeriLuar.map((p) => [p.id, p]));
+      if (!this.gallery.length) this.gallery = galeriLuar.slice();
+      else this.gallery = this.gallery.map((p) => (p.img ? p : { ...p, img: (peta.get(p.id) || {}).img || null }));
+    }
     if (s.v < 3) {
       let id = this.world.nextId;
       for (const [type, x, z, rot] of LIB_OBJECTS) this.world.objects.push({ id: id++, type, x, z, rot, lvl: 1, s: this.defaultState(type) });

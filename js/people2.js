@@ -213,7 +213,7 @@ function guestMinute(hh, m, hr, day) {
   }
   const s = hh.others[g.name]; if (!s) { W.guest = null; return; }
   const D = NPCS[g.name];
-  if (g.stage === 0 && idle(s)) { g.stage = 1; g.t = m; s.yaw = PI; hh.sfx('doorbell'); hh.hooks.guestArrive && hh.hooks.guestArrive({ name: g.name, relation: D.relation }); hh.toast(`🔔 Ting-tong! ${g.name} (${D.relation}) datang bertamu`, 'info', true); return; }
+  if (g.stage === 0 && idle(s)) { g.stage = 1; g.t = m; s.yaw = PI; hh.sfx('tamu:' + g.name); hh.hooks.guestArrive && hh.hooks.guestArrive({ name: g.name, relation: D.relation }); hh.toast(`🔔 Ting-tong! ${g.name} (${D.relation}) datang bertamu`, 'info', true); return; }
   if (g.stage === 1) { s.anim = 'wave'; if (m - g.t > 60) { hh.hooks.guestClose && hh.hooks.guestClose(); hh.toast(`${g.name} nunggu kelamaan, akhirnya pulang dulu 😢`, 'bad'); leaveGuest(hh, s, g); } return; }
   if (g.stage === 2) {
     if (!idle(s)) return;

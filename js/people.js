@@ -132,7 +132,7 @@ function arrive(hh, s, P) {
   if (P.mode === 'visit') {
     if (s.name === 'Bu Aisyah' && Math.random() < 0.7) { hh.op({ o: 'house', k: 'servings', d: 2 }); W.house.servingsBy = 'Bu Aisyah'; hh.toast('Bu Aisyah mampir antar opor ayam! +2 porsi di meja makan 🍲', 'good', true); }
     else hh.toast(`${s.name} main ke rumah 👋`, 'info');
-    hh.sfx('bell');
+    hh.sfx('tamu:' + s.name);
   }
   if (P.mode === 'borrow') {
     const amount = [2e6, 5e6, 10e6, 25e6, 50e6][Math.floor(Math.random() * 5)];

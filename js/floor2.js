@@ -62,12 +62,16 @@ export function buildFloor2(scene, W) {
   const parquet = tex((g, w, h) => {
     for (let y = 0; y < h; y += 32) for (let x = 0; x < w; x += 64) { const o = (y / 32) % 2 ? 32 : 0; g.fillStyle = `hsl(${24 + Math.random() * 6},${38 + Math.random() * 10}%,${30 + Math.random() * 8}%)`; g.fillRect(x + o - 64, y, 64, 32); g.fillRect(x + o, y, 64, 32); g.strokeStyle = 'rgba(0,0,0,.25)'; g.strokeRect(x + o, y, 64, 32); }
   }, 256, 256, 5);
-  const floorM = std({ map: parquet, roughness: 0.55 }), ceilM = std({ color: '#f1ece2' }), wallM = std({ color: '#efe6d4' }), trimM = std({ color: '#6b4a2e' });
+  const floorM = std({ map: parquet, roughness: 0.55 }), ceilM = std({ color: '#f1ece2', emissive: '#fff4e0', emissiveIntensity: 0 }), wallM = std({ color: '#efe6d4' }), trimM = std({ color: '#6b4a2e' });
   // pelat lantai dengan lubang tangga
   const T = 0.16, y = LVL_H;
+  // Plafon lantai 1 dipisah ke grupnya sendiri supaya bisa ditampilkan
+  // saat POV orang pertama (biar terasa benar-benar berada di dalam ruangan),
+  // tanpa ikut menampilkan isi lantai 2.
+  const P = new THREE.Group(); P.name = 'plafon'; P.visible = false; scene.add(P); W.plafon = P; W.plafonMat = ceilM;
   const slab = (minX, maxX, minZ, maxZ) => {
     const k = box(maxX - minX, T, maxZ - minZ, floorM, (minX + maxX) / 2, y - T / 2, (minZ + maxZ) / 2, F);
-    const c = box(maxX - minX, 0.02, maxZ - minZ, ceilM, (minX + maxX) / 2, y - T - 0.01, (minZ + maxZ) / 2, F); c.castShadow = false;
+    const c = box(maxX - minX, 0.02, maxZ - minZ, ceilM, (minX + maxX) / 2, y - T - 0.01, (minZ + maxZ) / 2, P); c.castShadow = false; c.receiveShadow = false;
     return k;
   };
   const X0 = HOUSE.minX, X1 = HOUSE.maxX, Z0 = HOUSE.minZ, Z1 = HOUSE.maxZ;

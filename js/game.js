@@ -17,17 +17,21 @@ import { updateRomanceFX } from './romance.js';
 import { buildPadang, buildPadangObject, updatePadang, isPadangType } from './padang.js';
 import { buildPolish, updatePolish, spawnBurst, shake } from './polish.js';
 import { buildSawah, updateSawah, buildSawahObject, isSawahType } from './sawah.js';
+import { buildDunia, updateDunia, gabungStatis, setDetailDunia, gabungGrup, matikanBayanganJauh } from './dunia.js';
 import { aiAsk, aiReady, AI } from './ai.js';
+import { updatePOV, masukPOV, keluarPOV, aksiKamera } from './kamera.js';
 import { NPCS } from './people.js';
-import { saveSlot, writeLocal, beaconSave, cloud } from './account.js';
+import { simpanDunia, tulisLokal, simpanSaatKeluar, cloud, kirimUlangTunda, adaTunda, DUNIA } from './account.js';
 const RND = (k, v) => (typeof v === 'number' && !Number.isInteger(v) ? (k === 'x' || k === 'z' || k === 'y' || k === 'yaw' || k === 'time' ? Math.round(v * 100) / 100 : Math.round(v * 10) / 10) : v);
 const DYN = ['x', 'z', 'y', 'yaw', 'anim', 'prop', 'hidden', 'moving', 'engagedBy', 'icon', 'say', 'lvl', 'away', 'snd', 'busyT', 'visit'];
-const mkObj = (o) => (isSawahType(o.type) ? buildSawahObject(o) : isPadangType(o.type) ? buildPadangObject(o) : isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : isTownType(o.type) ? buildTownObject(o) : isCatalogType(o.type) ? buildCatalogObject(o) : buildObject(o));
+const mkObjRaw = (o) => (isSawahType(o.type) ? buildSawahObject(o) : isPadangType(o.type) ? buildPadangObject(o) : isPetType(o.type) ? buildPetObject(o) : isLibType(o.type) ? buildLibObject(o) : isTownType(o.type) ? buildTownObject(o) : isCatalogType(o.type) ? buildCatalogObject(o) : buildObject(o));
+const mkObj = (o) => { const g = mkObjRaw(o); try { gabungGrup(g); } catch (e) { /* biarkan apa adanya */ } return g; };
 import { TYPES, SIM_NAMES, GRID, LOT, HOUSE, PI } from './data.js';
 
-const SAVE_KEY = 'griyaasri-save-v1';
-export function readSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
-export function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* abaikan */ } }
+// simpanan versi lama (sebelum satu-dunia) — dibaca sekali untuk dipindahkan
+const SAVE_LAMA = 'griyaasri-save-v1';
+export function readSave() { try { const s = localStorage.getItem(SAVE_LAMA); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+export function clearSave() { try { localStorage.removeItem(SAVE_LAMA); } catch (e) { /* abaikan */ } }
 
 const SKY = { day: new THREE.Color('#9fd3ee'), dusk: new THREE.Color('#f0a877'), night: new THREE.Color('#0d1a2e'), rain: new THREE.Color('#7f8f9c') };
 
@@ -52,7 +56,7 @@ export class Game {
       chatter: () => (this.isHost && AI.ambient && aiReady() ? (s, role) => { const d = NPCS[s.name] || {}; return aiAsk(`Kamu adalah ${s.name} (${d.trait || role}). Saat ini jam ${Math.floor((this.hh.world.time % 1440) / 60)}.00 di perumahan. Ucapkan satu kalimat obrolan spontan yang cocok dengan kegiatanmu sekarang (${s.anim}). Maks 14 kata.`, 50); } : null),
       openOutfit: (name) => { if (this.mySims.includes(name)) this.ui.openCAS(name); else this.send({ t: 'cas', sim: name }); },
       chat: (name, text) => { this.ui.chat(name, text); this.send({ t: 'chat', name, text }); },
-      newDay: () => this.save(),
+      newDay: () => this.save(true),
       eggFound: (id) => { shake(this.polishFX, 0.3); if (['upacara', 'daun'].includes(id)) spawnBurst(this.polishFX, this, id === 'daun' ? 'daun' : 'konfeti'); },
       leafBurst: () => spawnBurst(this.polishFX, this, 'daun'),
       confetti: () => spawnBurst(this.polishFX, this, 'konfeti'),
@@ -93,7 +97,20 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
-    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene); this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene);
+    // tandai semua yang harus tetap bisa bergerak / disembunyikan sendiri-sendiri
+    const tandai = (v, dalam = 0) => {                       // tandai hanya bagian yang benar-benar bergerak
+      if (!v || dalam > 3) return;
+      if (v.isObject3D) { v.userData.dinamis = true; if (v.children && v.children.length) v.traverse((o) => { o.userData.dinamis = true; }); return; }
+      if (Array.isArray(v)) { for (const x of v) tandai(x, dalam + 1); return; }
+      if (typeof v === 'object') for (const k of Object.keys(v)) { if (k === 'root') continue; tandai(v[k], dalam + 1); }
+    };
+    for (const d of [this.W.roof, this.W.floor2, this.W.plafon, this.W.stairs, ...(this.W.walls || []).map((w) => w.g), this.W.rain, this.W.clouds]) if (d && d.traverse) d.traverse((o) => { o.userData.dinamis = true; });
+    for (const fx of [this.townFX, this.padangFX, this.sawahFX, this.seasonFX, this.svcFX, this.polishFX]) tandai(fx);
+    for (const L of this.W.interiorLights || []) if (L.lamp) L.lamp.userData.dinamis = true;
+    this.statisDigabung = gabungStatis(this.scene);        // satukan hiasan statis → draw call turun drastis
+    this.duniaFX = buildDunia(this.scene);
+    this.bayanganDimatikan = matikanBayanganJauh(this.scene);   // bayangan hanya dihitung di sekitar rumah this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
     this.ensureModels();
@@ -150,10 +167,19 @@ export class Game {
   }
   setQuality(low) {
     this.quality.low = low; this.quality.shadows = !low;
+    this.setDetail(this.quality.detail != null ? this.quality.detail : (low ? 1 : 0));
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, low ? 1.25 : 2));
     this.renderer.shadowMap.enabled = !low; this.W.sun.castShadow = !low;
     this.scene.traverse((o) => { if (o.material) { const ms = [].concat(o.material); ms.forEach((m) => (m.needsUpdate = true)); } });
     this.resize();
+  }
+  // tingkat detail dunia jauh: 0 penuh · 1 sedang · 2 hemat
+  setDetail(level) {
+    this.quality.detail = level;
+    const n = setDetailDunia(this.duniaFX, this.scene, level);
+    this.camera.far = [600, 320, 140][level] || 600; this.camera.updateProjectionMatrix();
+    if (this.W.fog) this.W.fog.far = [420, 260, 120][level] || 420;
+    return n;
   }
 
   // ------------------------------------------------------------
@@ -200,7 +226,7 @@ export class Game {
     else if (this.isHost) hh.tick(0);
     this.syncObjects(); this.syncDirt(); this.updateGrass();
     const mul = W.speed === 0 ? 0 : (W.ultra ? ULTRA : SPEEDS[W.speed]);
-    this.updateCamera(dt);
+    if (this.pov) updatePOV(this, dt); else this.updateCamera(dt);
     this.ensureModels();
     const act = this.hh.sims[this.active]; if (act && (act.lvl || 0) !== this._lastActLvl) { this._lastActLvl = act.lvl || 0; this.followLvl = true; }
     if (act && (act.lvl || 0) !== this.viewLvl && this.followLvl !== false && !act.hidden && !this.buy) this.setView(act.lvl || 0);
@@ -211,7 +237,7 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
-      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); this.updateArt(night);
+      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); updateDunia(this.duniaFX, this, dt, t, night); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
     }
@@ -227,7 +253,16 @@ export class Game {
     if (this.buy) this.updateGhost();
     // jaringan
     if (this.mode === 'host' && this.peerOnline) { this.netT += dt; this.fullT = (this.fullT || 0) + dt; if (this.netT > 0.18) { this.netT = 0; const full = this.fullT > 6; if (full) this.fullT = 0; this.sendSnap(full); } }
-    this.saveT += dt; if (this.saveT > (this.isHost ? (this.roomCode ? 30 : 60) : 30)) { this.saveT = 0; this.save(false); }
+    // progres disimpan terus-menerus: lokal + cloud tiap ±15 detik, plus kirim ulang yang gagal
+    // penjaga jalur: tamu yang kehilangan sambungan harus menyambung ulang / ambil alih,
+    // jangan dibiarkan diam karena dunianya tidak lagi disimulasikan siapa pun
+    if (this.mode === 'guest' && this.linkHilang) {
+      const hidup = !!(this.net && this.net.conn);
+      if (hidup) this.mati = 0;
+      else { this.mati = (this.mati || 0) + dt; if (this.mati > 8) { this.mati = 0; this.linkHilang(); } }
+    }
+    this.saveT += dt; if (this.saveT > 12) { this.saveT = 0; this.save(false); }
+    this.ulangT = (this.ulangT || 0) + dt; if (this.ulangT > 45) { this.ulangT = 0; if (adaTunda()) kirimUlangTunda(); }
     this.ui.frame(dt);
     if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
     if (!this.ui.studioOpen) this.renderer.render(this.scene, this.camera);
@@ -279,7 +314,7 @@ export class Game {
       let dy = s.yaw - R.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); R.rotation.y += dy * Math.min(1, dt * (s.moving ? 14 : 8));
       m.seatH = s.seatH;
       m.setProp(s.species === 'capy' && s.hat > hh.world.time ? 'orange' : s.prop);
-      R.visible = !s.hidden && (s.lvl || 0) <= this.viewLvl;
+      R.visible = !s.hidden && (s.lvl || 0) <= this.viewLvl && !(this.pov && n === this.active);
       m.ring.visible = n === this.active && !s.hidden;
       const walking = s.anim === 'walk' || s.anim === 'jog' || s.anim === 'push' || s.anim === 'carry';
       const animDt = walking ? dt * (s.moving ? Math.min(Math.max(mul, 1), 6) : 0.0001) : dt * Math.min(Math.max(mul, 1), 2.5);
@@ -287,7 +322,7 @@ export class Game {
     }
     // plumbob
     const a = hh.sims[this.active]; const R = this.models[this.active].root;
-    this.plumbob.visible = !a.hidden;
+    this.plumbob.visible = !a.hidden && !this.pov;
     this.plumbob.position.set(R.position.x, R.position.y + (this.models[this.active].labelH ? this.models[this.active].labelH - 0.1 : 2.02 * (a.outfit.height || 1) + (a.y > 0.3 ? -0.35 : 0)) + Math.sin(performance.now() / 500) * 0.04, R.position.z);
     this.plumbob.rotation.y += dt * 1.6;
     const col = a.moodLevel().color; this.plumbob.material.color.set(col); this.plumbob.material.emissive.set(col);
@@ -316,7 +351,14 @@ export class Game {
     if (this.ghostT > 0) { this.ghostT -= dt; for (const L of W.interiorLights) if (L.lvl) { const on = Math.sin(this.ghostT * 34) > 0; L.light.intensity = on ? 4 : 0; L.lamp.material.emissiveIntensity = on ? 1.4 : 0; } }
     if (this.romanceGlow > 0) { this.romanceGlow -= dt; this._rgReset = true; for (const L of W.interiorLights) if (!L.lvl) { L.light.intensity = 0.9 + Math.sin(t * 2) * 0.15; L.light.color.set('#ff8fb1'); L.lamp.material.emissiveIntensity = 0.5; } }
     else if (this._rgReset) { this._rgReset = false; for (const L of W.interiorLights) L.light.color.set('#ffd9a0'); }
-    for (const L of W.interiorLights) { if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; } L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0)); L.lamp.material.emissiveIntensity = (night || rain) && pw ? 1.4 : 0; }
+    // di POV orang pertama plafon terpasang, jadi lampu dalam dinyalakan supaya ruangan tidak gelap
+    const dalamRuang = !!(this.pov && this.W.plafon && this.W.plafon.visible);
+    if (this.W.plafonMat) this.W.plafonMat.emissiveIntensity = dalamRuang && pw ? 0.3 : 0;
+    for (const L of W.interiorLights) {
+      if (L.lvl && this.viewLvl < 1) { L.light.intensity = 0; L.lamp.material.emissiveIntensity = 0; continue; }
+      L.light.intensity = (night && pw) ? (L.lvl ? 2.2 : 3.2) : (dalamRuang && pw) ? (L.lvl ? 1.8 : 2.6) : (rain && pw ? 1.2 : (L.lvl ? 0.6 : 0));
+      L.lamp.material.emissiveIntensity = (night || rain || dalamRuang) && pw ? 1.4 : 0;
+    }
     for (const L of W.streetLamps) { if (L.isLight) L.intensity = night ? 18 : 0; else if (L.material) { L.material.emissive && L.material.emissive.set('#ffd27a'); L.material.emissiveIntensity = night ? 2 : 0; } }
     W.glassMat.emissiveIntensity = night && pw ? 0.55 : 0;
     W.rain.visible = w.weather === 'hujan' || w.weather === 'badai';
@@ -349,12 +391,15 @@ export class Game {
   bindInput() {
     const el = this.renderer.domElement;
     let down = null;
-    el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; this.ui.closeMenu(); });
+    el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; this._pvx = e.clientX; this._pvy = e.clientY; this.ui.closeMenu(); });
     el.addEventListener('pointerup', (e) => {
-      if (!down) return; const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); const dt = performance.now() - down.t; down = null;
+      if (!down) return; const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); const dt = performance.now() - down.t; down = null; this._pvx = this._pvy = null; this.povDrag = null;
       if (moved < 8 && dt < 600) this.click(e.clientX, e.clientY);
     });
-    el.addEventListener('pointermove', (e) => { this.mouse = { x: e.clientX, y: e.clientY }; });
+    el.addEventListener('pointermove', (e) => {
+      if (this.pov && down) { const dx = e.clientX - (this._pvx != null ? this._pvx : down.x), dy = e.clientY - (this._pvy != null ? this._pvy : down.y); this.povDrag = { x: dx, y: dy }; this._pvx = e.clientX; this._pvy = e.clientY; }
+      this.mouse = { x: e.clientX, y: e.clientY };
+    });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -368,6 +413,7 @@ export class Game {
       if (k === 'r' && this.buy && this.buy.ghost) this.rotateGhost();
       if (k === 'f') this.follow = !this.follow;
       if (k === 'c') this.ui.cycleWalls();
+      if (k === 'v') { e.preventDefault(); aksiKamera(this, 'pov'); }
     });
     window.addEventListener('keyup', (e) => { this.keys[e.key.toLowerCase()] = false; });
     window.addEventListener('blur', () => { this.keys = {}; });
@@ -406,7 +452,7 @@ export class Game {
     const me = this.hh.sims[this.active];
     if (h.sim) {
       if (h.sim === this.active) { const now = Date.now(); if (now - (this._pbT || 0) > 2500) this._pbN = 0; this._pbT = now; this._pbN = (this._pbN || 0) + 1; if (this._pbN >= 10) { this._pbN = 0; this.cmd({ c: 'egg', t: 'plumbob' }); } }
-      if (h.sim !== this.active && this.mySims.includes(h.sim) && this.mode === 'solo' && this.ui.shiftSelect) return this.switchSim(h.sim);
+      if (h.sim !== this.active && this.mySims.includes(h.sim) && this.ui.shiftSelect) return this.switchSim(h.sim);
       const items = this.hh.menuFor(me, { sim: h.sim });
       const title = h.sim === this.active ? `${h.sim} (diri sendiri)` : `${this.active} → ${h.sim}`;
       return this.ui.showMenu(items, cx, cy, title);
@@ -516,20 +562,35 @@ export class Game {
     for (const part of ['world', 'sims', 'others']) for (const k in s[part] || {}) { if (sameSet && part === 'world' && k === 'objects') continue; let v = s[part][k]; if (part === 'others' && !full) { const o = {}; for (const f of DYN) o[f] = v[f]; v = o; } const j = JSON.stringify(v, RND); if (full || L[part][k] !== j) { out[part][k] = JSON.parse(j); L[part][k] = j; n++; } }
     if (full) this.net.send({ t: 'snap', s }); else if (n) this.net.send({ t: 'dsnap', s: out });
   }
-  // ---------- simpan: lokal langsung, cloud tiap ±60 dtk ----------
-  save(force = true) {
-    const slot = this.slot || 'solo';
+  // ---------- simpan: lokal tiap kali, cloud tiap ±15 dtk, dengan antre-ulang ----------
+  //  Satu dunia dipakai berdua, jadi yang sedang jadi host-lah yang menulis progres.
+  save(force = false) {
     if (!this.isHost && !this.snapBase) return;
-    let data; try { data = this.hh.saveData(); } catch (e) { return; }
-    const gal = (this.hh.gallery || []).slice(0, 16);
-    if (!this.isHost) { writeLocal(slot, data, gal); return; }       // tamu: cadangan lokal (untuk ambil alih host)
-    try { writeLocal(slot, data, gal); if (slot === 'solo') localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* abaikan */ }
+    let data; try { data = this.hh.saveData(); } catch (e) { this.simpanStatus = 'gagal menyusun data'; return; }
+    const gal = (this.hh.gallery || []).slice(0, 24);
+    if (!this.isHost) { try { tulisLokal(data, gal); } catch (e) { /* abaikan */ } return; }   // tamu: cadangan lokal untuk ambil alih host
+    try { tulisLokal(data, gal); } catch (e) { /* abaikan */ }
     const now = Date.now();
-    if (cloud() && (force || now - (this._cloudT || 0) > (slot === 'solo' ? 55000 : 25000))) {
-      this._cloudT = now; this.cloudState = 'menyimpan…';
-      saveSlot(slot, data, gal).then(() => { this.cloudState = `tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`; this.ui.saved && this.ui.saved(); }).catch((e) => { this.cloudState = 'gagal: ' + e.message; });
-    } else this.ui.saved && this.ui.saved();
+    if (!cloud()) { this.simpanStatus = 'tersimpan di perangkat ini'; this.ui.saved && this.ui.saved(); return; }
+    if (!force && now - (this._cloudT || 0) < 15000) return;
+    if (this._simpanJalan) { this._simpanLagi = true; return; }
+    this._cloudT = now; this._simpanJalan = true; this.simpanStatus = 'menyimpan…'; this.simpanGagal = false;
+    simpanDunia(data, gal)
+      .then((meta) => {
+        this._gagalBerturut = 0; this.simpanGagal = false;
+        this.simpanStatus = `tersimpan ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}`;
+        if (meta && meta.bytes) this.simpanBytes = meta.bytes;
+        this.ui.saved && this.ui.saved();
+      })
+      .catch((e) => {
+        this._gagalBerturut = (this._gagalBerturut || 0) + 1; this.simpanGagal = true;
+        this.simpanStatus = 'gagal: ' + e.message;
+        // beri tahu sekali saja, jangan spam
+        if (this._gagalBerturut === 3) this.ui.toast(`⚠️ Progres belum bisa dikirim ke server (${e.message}). Tetap tersimpan di perangkat ini dan akan dicoba lagi otomatis.`, 'bad', true);
+      })
+      .finally(() => { this._simpanJalan = false; if (this._simpanLagi) { this._simpanLagi = false; setTimeout(() => this.save(true), 1200); } });
   }
+  // kirim ulang simpanan yang sempat gagal (dipanggil berkala dari frame)
   // tab disembunyikan/diminimalkan: browser menghentikan animasi → dunia tetap disimulasikan
   bgSim() {
     if (this._bgIv) return;
@@ -542,12 +603,12 @@ export class Game {
         if (!this.isHost || this.pausedByUI()) return;
         while (dt > 0) { const st = Math.min(0.05, dt); this.hh.tick(st); dt -= st; }
         if (this.peerOnline) this.sendSnap(false);
-        this.saveT += 1; if (this.saveT > 30) { this.saveT = 0; this.save(false); }
+        this.saveT += 0.25; if (this.saveT > 12) { this.saveT = 0; this.save(false); }
       }, 250);
     });
     this._bgIv = 0;
   }
-  saveOnExit() { try { beaconSave(this.slot || 'solo', this.hh.saveData()); } catch (e) { /* abaikan */ } }
+  saveOnExit() { try { simpanSaatKeluar(this.hh.saveData()); } catch (e) { /* abaikan */ } }
   // ---------- tamu mengambil alih jadi host (host keluar) ----------
   becomeHost(net) {
     const data = this.hh.saveData(); const gal = this.hh.gallery || []; const hooks = this.hh.hooks;

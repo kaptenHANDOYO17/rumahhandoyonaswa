@@ -23,49 +23,36 @@
     <div class="lgem"></div>
     <p class="lkick">Perumahan Griya Asri · Blok C-7</p>
     <h1>Rumah <span>Handoyo</span> &amp; <span>Naswa</span></h1>
-    <p class="lsub">Simulasi rumah tangga 3D. Masak, beberes, kerja, bayar tagihan, dan jaga kemesraan — sendiri atau berdua dari HP masing-masing.</p>
+    <p class="lsub">Simulasi rumah tangga 3D untuk dimainkan berdua. Satu dunia bersama yang terus hidup: masak, beberes, kerja, melukis, trading, dan jaga kemesraan.</p>
 
     <div class="lpane" data-p="login">
-      <p class="lq">Masuk untuk menyimpan progres (solo & berdua)</p>
+      <p class="lq">Masuk ke dunia kalian</p>
       <input id="lUser" class="lin" placeholder="nama akun (huruf kecil)" autocomplete="username" autocapitalize="off">
       <input id="lPin" class="lin" type="password" placeholder="kata sandi (min. 4)" autocomplete="current-password">
       <div class="lrow"><button class="btn big" id="lLogin">Masuk</button><button class="btn big alt" id="lReg">Daftar baru</button></div>
       <p class="muted small" id="lDbInfo"></p>
-      <button class="lnk" id="lGuestPlay">Main tanpa akun (simpanan hanya di perangkat ini)</button>
+      <p class="muted small">Dunia ini hanya satu dan dimainkan berdua. Satu akun untuk Handoyo, satu akun untuk Naswa — peran terikat ke akun supaya tidak pernah tertukar.</p>
     </div>
 
-    <div class="lpane" data-p="main" hidden>
-      <p class="lwho" id="lWho"></p>
-      <button class="btn big" id="lContinue" hidden>▶ Lanjutkan main sendiri <small></small></button>
-      <button class="btn big" id="lSolo">🏡 Main sendiri <small>kendalikan dua-duanya</small></button>
-      <button class="btn big capy" id="lCapy">🦫 Main jadi capybara <small>jadi Kapi, berendam & chill di rumah</small></button>
-      <p class="lq">💞 Rumah berdua (room tetap)</p>
-      <div id="lRooms" class="lrooms"></div>
-      <div class="lrow">
-        <button class="btn big alt" data-pane="host">＋ Buat rumah berdua</button>
-        <button class="btn big alt" data-pane="join">🔑 Gabung pakai kode</button>
-      </div>
-      <div class="lrow"><button class="lnk" id="lNew">Hapus simpanan solo di perangkat ini</button><button class="lnk" id="lOut">Keluar akun</button></div>
-    </div>
-
-    <div class="lpane" data-p="host" hidden>
-      <p class="lq">Kamu mau jadi siapa di rumah ini?</p>
+    <div class="lpane" data-p="peran" hidden>
+      <p class="lq">Akun ini mau jadi siapa? (pilih sekali, lalu permanen)</p>
       <div class="lpick">
-        <button data-pick="Handoyo" class="on"><i class="av h"></i>Handoyo<small>Suami · Programmer</small></button>
-        <button data-pick="Naswa"><i class="av n"></i>Naswa<small>Istri · Pelukis</small></button>
+        <button data-peran="Handoyo"><i class="av h"></i>Handoyo<small>Suami · Programmer</small><em class="st"></em></button>
+        <button data-peran="Naswa"><i class="av n"></i>Naswa<small>Istri · Pelukis</small><em class="st"></em></button>
       </div>
-      <input id="lRoomName" class="lin" maxlength="30" placeholder="Nama rumah (mis. Rumah Kita)">
-      <label class="chk"><input type="checkbox" id="lHostSave" checked> mulai dari simpanan solo (kalau ada)</label>
-      <button class="btn big" id="lHost">Buat rumah & kode tetap</button>
-      <button class="lnk" data-pane="main">← kembali</button>
+      <p class="muted small" id="lPeranInfo"></p>
+      <button class="lnk lOut">Keluar akun</button>
     </div>
 
-    <div class="lpane" data-p="join" hidden>
-      <p class="lq">Masukkan kode dari pasanganmu</p>
-      <input id="lCode" class="codein" maxlength="6" placeholder="ABCDE" autocomplete="off">
-      <button class="btn big" id="lJoin">Gabung</button>
-      <button class="lnk" data-pane="main">← kembali</button>
+    <div class="lpane" data-p="dunia" hidden>
+      <p class="lwho" id="lAkun"></p>
+      <p class="lq" id="lPeranKu"></p>
+      <div id="lInfoDunia" class="lrooms"></div>
+      <button class="btn big" id="lMasuk">▶ Masuk ke dunia</button>
+      <div class="lrow"><button class="lnk" id="lGantiPeran">Lepas / ganti peran</button><button class="lnk lOut">Keluar akun</button></div>
+      <button class="lnk danger" id="lReset">Hapus progres dunia &amp; mulai dari hari ke-1</button>
     </div>
+
     <p id="lStatus" class="lstatus"></p>
   </div>
 </div>

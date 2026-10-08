@@ -2,7 +2,7 @@
 
 > ⚙️ **Belum mengatur Vercel?** Baca `PANDUAN-SETUP.md` — panduan lengkap untuk kunci AI (Groq / Google / OpenRouter), database Upstash, TURN, dan cara mengeceknya.
 
-Game simulasi rumah tangga 3D ala The Sims. Bisa dimainkan sendiri, atau berdua dari 2 perangkat berbeda.
+Game simulasi rumah tangga 3D ala The Sims. **Satu dunia bersama** yang dimainkan berdua dari 2 laptop — kalau salah satu offline, karakternya dijalankan komputer dan dunianya terus berjalan.
 
 ## Deploy ke Vercel (tanpa build)
 **Cara A — lewat website (paling gampang)**
@@ -17,23 +17,90 @@ cd rumah-handoyo-naswa
 vercel --prod
 ```
 
-## Main berdua
-1. Pemain 1: buka link game → **Buat room berdua** → pilih karakter → dapat kode 5 huruf + link.
-2. Pemain 2: buka link yang dibagikan (kode terisi otomatis) → **Gabung**.
-3. Masing-masing mengendalikan satu karakter. Perangkat pemain 1 adalah "host" — biarkan tab-nya tetap terbuka.
-4. Kalau gagal tersambung di jaringan kantor/seluler tertentu, coba pakai WiFi yang sama atau hotspot. (Koneksi P2P memakai server sinyal gratis PeerJS + STUN Google.)
+## Main berdua (sekarang hanya ada SATU dunia)
+1. **Wajib**: aktifkan database Upstash dulu (lihat `PANDUAN-SETUP.md` bagian 2). Itu yang mengunci peran.
+2. **Kamu**: daftar akun → pilih **Handoyo** (sekali saja, lalu permanen) → **Masuk ke dunia**.
+3. **Naswa** di laptopnya: daftar akun sendiri → pilih **Naswa** → **Masuk ke dunia**.
+4. Sejak itu cukup login — login-mu selalu jadi Handoyo, login Naswa selalu jadi Naswa, **tidak akan tertukar**.
+5. Siapa pun yang online lebih dulu otomatis jadi "server". Kalau salah satu keluar, **karakternya dijalankan komputer** dan progres tetap tersimpan.
+6. Kalau gagal tersambung di jaringan kantor/seluler tertentu, coba WiFi yang sama atau hotspot. (P2P memakai server sinyal PeerJS + STUN.)
 
 ## Fitur baru
 - **Dompet masing-masing Rp 10 miliar.** Gaji masuk ke dompet yang bekerja, belanja memotong dompet karakter yang sedang kamu pegang. Bisa kirim uang ke pasangan di tab Keuangan. Simpanan lama otomatis diisi 10 miliar per orang.
-- **Obrolan suara saat main berdua.** Tekan tombol 🎙️ Suara (atau tombol di jendela room), izinkan mikrofon. Tekan lagi untuk bisu/aktif. Nama karakter menyala hijau saat orangnya bicara. Butuh HTTPS — otomatis di Vercel.
+- **Obrolan suara saat main berdua.** Tekan tombol 🎙️ Suara, izinkan mikrofon. Tekan lagi untuk bisu/aktif. Nama karakter menyala hijau saat orangnya bicara. Butuh HTTPS — otomatis di Vercel.
 - **Hewan peliharaan: Oyen (kucing oranye) & Kapi (capybara).** Punya kebutuhan, AI sendiri, dan ikatan dengan Handoyo/Naswa. Benda baru di kategori Beli → Hewan: mangkok makan, kasur kucing, kotak pasir, tiang garukan, rumah capybara, kolam capybara.
-- **Kamu bisa jadi hewannya.** Klik kartu Oyen/Kapi di panel (atau tombol "Main jadi capybara" di menu awal). Kapi bisa berendam di kolam, chill pakai jeruk di kepala, nyemil kebun; Oyen bisa naik ke punggung Kapi, garuk tiang, zoomies, dan menjatuhkan gelas. Saat main berdua, dua pemain sama-sama boleh mengendalikan hewan.
+- **Kamu bisa jadi hewannya.** Klik kartu Oyen/Kapi di panel untuk mengendalikannya (tombol "Main jadi capybara" di menu awal sudah tidak ada sejak dunianya disatukan). Kapi bisa berendam di kolam, chill pakai jeruk di kepala, nyemil kebun; Oyen bisa naik ke punggung Kapi, garuk tiang, zoomies, dan menjatuhkan gelas. Saat main berdua, dua pemain sama-sama boleh mengendalikan hewan.
 
 
 
 
 
 
+
+
+## Update 11 — Satu Dunia Berdua, Progres Anti-Hilang, Kamera & POV Orang Pertama
+
+### 🏡 Satu dunia saja, peran terkunci ke akun
+- Semua mode lama (main sendiri, jadi capybara, buat/gabung room, banyak room) **dihapus**. Yang tersisa satu dunia bersama: `HNDNS`.
+- Peran **diklaim sekali lalu permanen**: akunmu selalu masuk sebagai Handoyo, akun Naswa selalu sebagai Naswa. Tidak mungkin tertukar lagi.
+- Bug *"room penuh setelah logout"* hilang, karena keanggotaan sekarang menempel ke akun, bukan ke urutan siapa yang masuk duluan.
+- Ada tombol **"Lepas / ganti peran"** kalau salah pilih, dan **"Hapus progres dunia"** kalau ingin mulai dari hari ke-1.
+
+### 💾 Progres tidak bisa hilang lagi (ini penyebab bug lamamu)
+- **Penyebabnya ketemu**: gambar lukisan (base64) ikut ditumpuk ke dalam berkas progres, **dua kali**. Setelah beberapa puluh hari ukurannya menembus batas server, server menolak (error 413), dan diam-diam progres berhenti tersimpan — persis "ngebug di hari ke-30".
+- Sekarang gambar lukisan disimpan terpisah. Diuji dengan simulasi **56 hari penuh**: ukuran progres tetap di kisaran **49 KB** dan tidak bertambah lagi.
+- Semua daftar yang dulu tumbuh tanpa batas (catatan kripto, SMS, riwayat harga, pesanan) sekarang dipangkas otomatis.
+- **Simpan tiap ±12 detik** + tiap ganti hari + saat tab disembunyikan + saat ditutup. Kalau pengiriman gagal, progres tetap aman di laptop dan **dikirim ulang otomatis**.
+- Bar atas punya **penanda penyimpanan**: hijau `💾 14.32` (tersimpan), kuning berkedip (sedang menyimpan), merah (tertunda, akan dicoba lagi).
+
+### 🤖 Yang offline dijalankan komputer
+- Handoyo: berangkat/WFH di jam kerja, ngoding proyek freelance di malam hari.
+- Naswa: melukis siang hari, **memajang karyanya di toko online, menerima tawaran bagus, menawar balik yang kurang**, dan membaca buku di perpustakaan sore hari.
+- Keduanya: beberes (cuci piring, buang sampah, cuci baju, pel, siram tanaman, isi mangkok hewan), jajan kopi/nasi padang, dan **mengelola kripto** (beli saat turun, cairkan saat untung).
+- Kartu pasangan diberi lencana **🤖 komputer** supaya jelas siapa yang sedang dijalankan mesin.
+
+### 🎥 Tombol kamera & POV orang pertama
+- Panel tombol kamera di layar: **▲ ▼ ◀ ▶** geser, **＋ －** zoom, **⌾** reset & ikuti karakter.
+- **👁️ POV orang pertama** (tombol atau tekan **V**): kamera masuk ke kepala karaktermu — Handoyo di laptopmu, Naswa di laptopnya.
+  - Dinding **utuh**, **plafon terpasang**, dan lampu dalam menyala, jadi benar-benar terasa berada di dalam ruangan.
+  - Jalan dengan **WASD** atau tombol ▲▼◀▶, lihat sekeliling dengan **geser layar** / **⟲ ⟳** / **Q E**.
+  - Ada **goyangan langkah dan bunyi langkah**, serta bidik (✛) di tengah layar. Naik ke lantai 2 otomatis mengikuti.
+  - Tekan **V** lagi untuk kembali ke kamera atas — posisi kamera lamamu dikembalikan persis.
+
+### 🔧 Perbaikan bug lain
+- Perhitungan hari tidak bisa macet lagi: kalau tab lama ditinggal, sisa menit dilompati (dulu bisa membekukan game karena ribuan putaran sekaligus).
+- Pengundian tujuan harian diberi pengaman agar tidak pernah berputar tanpa henti.
+- **Tamu yang kehilangan sambungan tidak lagi diam membeku**: ada penjaga jalur yang otomatis menyambung ulang atau mengambil alih dunia.
+- `crypto.subtle` yang tidak tersedia di koneksi non-HTTPS tidak lagi membuat login gagal.
+
+## Update 10 — Desa Hidup Sepenuhnya, Suara Khas Tamu, dan Bursa Kripto
+
+### 🌍 Seluruh desa ikut bermusim & hidup (ringan)
+- **Musim menyelimuti seluruh peta**, bukan cuma halaman rumah: rumput, pohon pinggir jalan, atap 9 rumah tetangga, taman, pos satpam, sawah, sampai **bukit dan gunung di kejauhan**. Saat musim salju semuanya memutih; gugur jadi oranye; panas menguning kering.
+- **Kehidupan di kejauhan**: 26 warga berjalan di jalan-jalan desa, 8 kendaraan lalu-lalang, asap dapur mengepul dari rumah tetangga tiap pagi & sore, lampu jalan dan jendela menyala saat malam.
+- **Semuanya ringan**: warga, kendaraan, asap, dan lampu memakai *instanced mesh* (masing-masing hanya 1 draw call), dan pewarnaan musim seluruh dunia dihitung 5× per detik, bukan tiap frame. Biaya totalnya terukur **0,06–0,09 ms per frame**.
+
+### ⚡ Optimasi besar untuk HP & laptop
+- **Geometri statis digabung otomatis** saat permainan dimuat: 1.248 mesh hiasan disatukan per material.
+- **Perabot digabung per material**, kecuali bagian yang beranimasi (layar TV, api kompor, piring di meja) yang tetap terpisah.
+- **720 benda jauh tidak lagi ikut menghitung bayangan**.
+- Hasil terukur: **4.412 → 2.978 draw call** (−33%) dengan bayangan menyala, dan **1.870 draw call** di mode "Grafis: ringan".
+- Menu baru **🌍 Detail desa: penuh / sedang / hemat** untuk perangkat lemah (memangkas jarak pandang dan kehidupan di kejauhan).
+
+### 🔔 Suara khas tiap tamu
+Tiap tamu kini punya "lagu bel" sendiri — nada bel, jumlah ketukan pintu, dan warna suara sapaan yang berbeda:
+- **Bu Ratna** nada hangat keibuan dengan oktaf lembut · **Kak Dinda** ceria dan cepat
+- **Reza** seperti bunyi notifikasi programmer · **Mbak Ayu** elegan ala galeri seni
+- **Pak Ismail** berat dengan 4 ketukan mantap · **Bang Jefri** ragu-ragu, mengetuk 5 kali
+- **Pak Harjo** berwibawa · **Pak Slamet** singkat seperti peluit ronda · **Mas Kurir** buru-buru
+
+### 🪙 Bursa Kripto (Menu → 🪙 Bursa Kripto)
+- Handoyo dan Naswa **masing-masing sudah punya 1.000 BTC** sebagai dana cadangan keluarga, dengan **1 BTC = Rp 5.000.000.000**.
+- 8 aset: BTC, ETH, SOL, BNB, XRP, ADA, DOGE, dan IDRT (stabil). Harga awal memakai rasio pasar akhir September 2026 (BTC ±$85 rb, ETH ±$3,6 rb, SOL ±$115) lalu diskalakan ke patokan Rp 5 miliar per BTC.
+- **Harga bergerak tiap jam game**: tren pasar yang berubah pelan, guncangan acak, serta kabar pasar (ETF disetujui, bursa diretas, suku bunga naik, dll.) yang menggerakkan semua koin sekaligus.
+- Ada **grafik mini**, perubahan 24 jam, laporan pasar tiap pagi, dan catatan transaksi.
+- Bisa **beli** (dari uang tunai), **cairkan kapan saja** menjadi uang tunai, dan **kirim koin ke pasangan**. Fee 0,1%.
+- Dalam uji 30 hari game, BTC bergerak di rentang Rp 4,43 M – 6,11 M — naik-turun wajar, bukan ambles permanen.
 
 ## Update 9 — Kenyamanan Main (energi, kebutuhan, panjang hari)
 

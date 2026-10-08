@@ -12,13 +12,15 @@ import { SoundFX } from './sound.js';
 import { Phone } from './phone.js';
 import { aiAsk, aiReady } from './ai.js';
 import { localReply } from './chatbrain.js';
-import { Acct, cloud, logout } from './account.js';
+import { Acct, cloud, DUNIA } from './account.js';
+import { buatPanelKamera, gambarPanel, aksiKamera } from './kamera.js';
 import { NPCS as NPCS2, STAFF as STAFF2 } from './people.js';
 import { openStudio, openGallery } from './studio.js';
 import { openCalendar, seasonChipText } from './seasons.js';
 import { openRush } from './minigame.js';
 import { openEggs, konamiWatcher } from './easter.js';
 import { openPhoto } from './polish.js';
+import { openCrypto } from './crypto.js';
 import { openEmergency } from './services.js';
 import { ACCESS_INFO } from './books2.js';
 import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
@@ -82,6 +84,7 @@ export class UI {
         <div class="fam card" id="uFam" title="Level keluarga — objektif utama"><span class="fam-l" id="uFamL">Pengantin Baru</span><div class="fam-bar"><i id="uFamBar"></i></div></div>
         <div class="spacer"></div>
         <div class="net card" id="uNet"></div>
+        <div class="simpan card" id="uSimpan" title="Status penyimpanan progres"><i></i><span></span></div>
         <div class="money card" id="uMoney">Rp 0</div>
         <button class="iconbtn card" id="uMenuBtn" title="Menu">☰</button>`),
       h('div', 'toasts', ''),
@@ -114,7 +117,9 @@ export class UI {
       h('div', 'chat hidden', `<div class="chatlog" id="uChatLog"></div><form id="uChatF"><input id="uChatIn" maxlength="120" placeholder="Ketik pesan… (tampil di atas kepala)" autocomplete="off"><button class="btn sm">Kirim</button></form>`),
       h('div', 'ctx hidden', ''),
       h('div', 'modal hidden', ''),
+      h('div', 'bidik', '✛'),
     );
+    buatPanelKamera(this, R);
     // event
     $('#uSpeeds', R).addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.g.cmd({ c: 'speed', v: +b.dataset.sp }); });
     $('.modes', R).addEventListener('click', (e) => {
@@ -196,19 +201,27 @@ export class UI {
     const payer = act.isPet ? null : act;
     $('#uMoney').innerHTML = payer ? `<small>${payer.name}</small>${fmtShort(payer.wallet)}` : `<small>Keluarga</small>${fmtShort(W.money)}`;
     $('#uMoney').title = HUMANS.map((n) => `${n}: ${fmtRp(hh.sims[n].wallet)}`).join('\n');
-    const vb = $('#uVoiceBtn'); vb.style.display = g.mode === 'solo' ? 'none' : '';
+    const vb = $('#uVoiceBtn'); vb.style.display = '';
     vb.classList.toggle('on', !!(this.voice && this.voice.on && !this.voice.muted)); vb.classList.toggle('muted', !!(this.voice && this.voice.muted));
     $('#uVoiceL').textContent = !this.voice || !this.voice.on ? 'Suara' : this.voice.muted ? 'Bisu' : 'Aktif';
     const tabs = act.isPet ? [['needs', 'Kebutuhan'], ['mood', 'Suasana'], ['bond', 'Ikatan']] : [['needs', 'Kebutuhan'], ['mood', 'Suasana'], ['skills', 'Keahlian'], ['career', 'Karier'], ['rel', 'Hubungan'], ['goals', 'Tujuan'], ['money', 'Keuangan']];
     if (!tabs.find((t) => t[0] === this.tab)) this.tab = 'needs';
     const th = tabs.map(([k, l]) => `<button data-tab="${k}">${l}</button>`).join(''); if (this._tabsH !== th) { this._tabsH = th; $('#uTabs').innerHTML = th; }
     const net = $('#uNet');
-    if (g.mode === 'solo') net.style.display = 'none';
-    else { net.style.display = ''; const on = g.mode === 'guest' ? true : g.peerOnline; net.innerHTML = `<i class="dot ${on ? 'on' : ''}"></i>${g.mode === 'host' ? `Room <b>${esc(g.roomCode || '')}</b>` : 'Terhubung'} · ${on ? 'Berdua' : 'Menunggu pasangan…'}`; }
+    { net.style.display = ''; const on = g.mode === 'guest' ? true : g.peerOnline;
+      const pas = g.pasangan || SIM_NAMES.find((n) => n !== g.peran) || 'pasangan';
+      net.innerHTML = `<i class="dot ${on ? 'on' : ''}"></i>${g.mode === 'host' ? 'Kamu server' : 'Tersambung'} · ${on ? 'Main berdua 💞' : `${esc(pas)} dijalankan komputer 🤖`}`; }
+    // status penyimpanan progres
+    { const sv = $('#uSimpan'); const st = g.simpanStatus || 'menunggu…';
+      sv.classList.toggle('kerja', /menyimpan/.test(st)); sv.classList.toggle('gagal', !!g.simpanGagal);
+      const txt = g.simpanGagal ? 'simpanan tertunda' : /menyimpan/.test(st) ? 'menyimpan…' : st.replace('tersimpan ', '💾 ');
+      if (sv._t !== txt) { sv._t = txt; sv.querySelector('span').textContent = txt; }
+      sv.title = `Dunia ${DUNIA} · ${st}${g.simpanBytes ? ` · ${Math.round(g.simpanBytes / 1024)} KB` : ''}`; }
     const wl = { cut: 'Potong', down: 'Rendah', up: 'Penuh', roof: 'Atap' }[g.wallMode]; $('#uWallL').textContent = wl; $('#uFloorL').textContent = g.viewLvl ? 'Lt 2' : 'Lt 1';
     for (const b of R.querySelectorAll('.modes button')) {
       const m = b.dataset.mode; b.classList.toggle('on', (m === 'live' && !g.buy) || (m === 'buy' && !!g.buy) || (m === 'follow' && g.follow));
     }
+    gambarPanel(this);
     this.renderPortraits(); this.renderQueue();
     $('.panel', R).classList.toggle('folded', !this.panelOpen);
     for (const b of R.querySelectorAll('#uTabs button')) b.classList.toggle('on', b.dataset.tab === this.tab);
@@ -219,12 +232,12 @@ export class UI {
     const g = this.g; let html = '';
     for (const n of HUMANS) {
       const s = g.hh.sims[n]; const ml = s.moodLevel(); const mine = g.mySims.includes(n);
-      const who = g.mode === 'solo' ? '' : (mine ? 'Kamu' : 'Pasangan');
+      const who = mine ? 'Kamu' : 'Pasangan';
       const act = s.hidden ? 'Di kantor 🏢' : (s.queue[0] ? (s.queue[0].step || s.queue[0].label) : (s.engagedBy ? `Diajak ${s.engagedBy}` : 'Santai'));
       html += `<div class="port ${n === g.active ? 'act' : ''} ${mine ? '' : 'other'}" data-sim="${n}" style="--mc:${ml.color}">
         <div class="gem"></div>
         <div class="pinfo"><div class="pname">${n}${who ? `<em>${who}</em>` : ''}</div><div class="pmood">${ml.label}</div><div class="pact">${esc(act)}</div></div>
-        ${mine ? `<button class="auto ${s.autonomy ? 'on' : ''}" title="Kehendak bebas">${s.autonomy ? '🤖 Auto' : '✋ Manual'}</button>` : ''}
+        ${mine ? `<button class="auto ${s.autonomy ? 'on' : ''}" title="Kehendak bebas">${s.autonomy ? '🤖 Auto' : '✋ Manual'}</button>` : (s.dijalankanKomputer ? '<span class="robot" title="Pasanganmu sedang offline — karakternya dijalankan komputer">🤖 komputer</span>' : '')}
         ${n === g.active ? `<button class="fold" title="Buka/tutup panel">${this.panelOpen ? '▾' : '▴'}</button>` : ''}
       </div>`;
     }
@@ -305,7 +318,8 @@ export class UI {
     const r = $('#uMoney').getBoundingClientRect(); el.style.left = r.left + 'px'; el.style.top = r.bottom + 4 + 'px';
     document.body.append(el); setTimeout(() => el.remove(), 1600);
   }
-  sfx(k) { this.sound.play(k); }
+  sfx(k) {
+    if (typeof k === 'string' && k.startsWith('tamu:')) return this.sound.guest(k.slice(5)); this.sound.play(k); }
   saved() { const t = Date.now(); if (t - (this._svT || 0) > 50000) { this._svT = t; this.toast(`Permainan tersimpan 💾${this.g.cloudState ? ' · ☁️ ' + this.g.cloudState : ''}`, 'info'); } }
   chat(name, text) {
     this.chatLog.push({ name, text }); if (this.chatLog.length > 40) this.chatLog.shift();
@@ -487,7 +501,7 @@ export class UI {
 
   // ---------- obrolan suara ----------
   async voiceToggle() {
-    const g = this.g, net = g.net; if (!net || g.mode === 'solo') return;
+    const g = this.g, net = g.net; if (!net) return;
     if (!this.voice) this.voice = { on: false, muted: false, meName: g.mySims.find((n) => HUMANS.includes(n)), peerName: HUMANS.find((n) => !g.mySims.includes(n)), meLvl: 0, peerLvl: 0 };
     const V = this.voice;
     if (V.on) { V.muted = !V.muted; net.setMuted(V.muted); this.toast(V.muted ? 'Mikrofon dibisukan 🔇' : 'Mikrofon aktif 🎙️', 'info'); this.refresh(); return; }
@@ -530,26 +544,31 @@ export class UI {
     const g = this.g;
     const m = this.modal(`<h2>Menu</h2>
       <div class="mbtns">
-        <button class="btn" data-a="save">💾 Simpan sekarang ${cloud() ? '(cloud + perangkat)' : '(perangkat ini)'}</button>
+        <button class="btn" data-a="save">💾 Simpan sekarang ${cloud() ? '(cloud + laptop ini)' : '(laptop ini)'}</button>
+        <button class="btn" data-a="pov">${g.pov ? '🎥 Keluar POV orang pertama' : '👁️ POV orang pertama (V)'}</button>
         <button class="btn" data-a="help">❓ Cara main</button>
         <button class="btn" data-a="snd">${this.sound.on ? '🔊 Suara: nyala' : '🔇 Suara: mati'}</button>
         <button class="btn" data-a="rush">🍛 Minigame: Nasi Padang Rush</button>
         <button class="btn" data-a="eggs">🥚 Jurnal Rahasia (easter egg)</button>
+        <button class="btn" data-a="crypto">🪙 Bursa Kripto (portofolio keluarga)</button>
         <button class="btn" data-a="photo">📸 Mode Foto</button>
         <button class="btn" data-a="opt">⚙️ Kenyamanan Main (energi, kebutuhan, panjang hari)</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
         <button class="btn ghost" data-a="unstuck">🔧 Lepas macet: ${esc(this.g.active)}</button>
-        <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · ${this.g.slot && this.g.slot !== 'solo' ? 'Rumah berdua ' + esc(this.g.slot.slice(5)) + (this.g.isHost ? ' (kamu host)' : ' (tamu)') : 'Main sendiri'}${this.g.cloudState ? ' · ☁️ ' + esc(this.g.cloudState) : ''}</p>
+        <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · Dunia <b>${esc(DUNIA)}</b> sebagai <b>${esc(this.g.peran || this.g.active)}</b> ${this.g.isHost ? '(kamu server)' : '(pasanganmu server)'}${this.g.simpanStatus ? ' · ☁️ ' + esc(this.g.simpanStatus) : ''}</p>
         <button class="btn" data-a="gfx">${g.quality.low ? '🖥️ Grafis: ringan' : '🖥️ Grafis: tinggi'}</button>
+        <button class="btn ghost" data-a="detail">🌍 Detail desa: ${['penuh (semua hidup)', 'sedang', 'hemat (fokus rumah)'][g.quality.detail || 0]}</button>
         <button class="btn ghost" data-a="exit">🚪 Keluar ke menu utama</button>
         <button class="btn ghost" data-close>Tutup</button></div>`);
     m.querySelector('.mbtns').onclick = (e) => {
       const a = e.target.closest('[data-a]'); if (!a) return;
-      if (a.dataset.a === 'save') { g.save(); this.closeModal(); }
+      if (a.dataset.a === 'save') { g.save(true); this.closeModal(); }
+      if (a.dataset.a === 'pov') { this.closeModal(); aksiKamera(g, 'pov'); }
       if (a.dataset.a === 'help') this.openHelp();
       if (a.dataset.a === 'snd') { this.sound.on = !this.sound.on; if (!this.sound.on) this.sound.stopAll(); this.openMenu(); }
       if (a.dataset.a === 'rush') { this.closeModal(); openRush(this); }
       if (a.dataset.a === 'eggs') { this.closeModal(); openEggs(this); }
+      if (a.dataset.a === 'crypto') { this.closeModal(); openCrypto(this); }
       if (a.dataset.a === 'photo') { this.closeModal(); openPhoto(this); }
       if (a.dataset.a === 'opt') { this.closeModal(); this.openOptions(); }
       if (a.dataset.a === 'savenow') { this.g.save(true); this.toast('Menyimpan… 💾', 'info'); }
@@ -557,6 +576,7 @@ export class UI {
       if (a.dataset.a === 'tomenu') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 600); }
       if (a.dataset.a === 'vol') { const v = [0.3, 0.55, 0.8, 1][([0.3, 0.55, 0.8, 1].indexOf(this.sound.vol) + 1) % 4]; this.sound.setVolume(v); this.openMenu(); }
       if (a.dataset.a === 'gfx') { g.setQuality(!g.quality.low); this.openMenu(); }
+      if (a.dataset.a === 'detail') { const n = g.setDetail(((g.quality.detail || 0) + 1) % 3); this.toast(`Detail desa: ${['penuh', 'sedang', 'hemat'][g.quality.detail]}${n ? ` · ${n} benda jauh disembunyikan` : ''}`, 'info'); this.openMenu(); }
       if (a.dataset.a === 'exit') { this.g.save(true); try { this.g.net && this.g.net.send({ t: 'bye' }); } catch (e) { /* abaikan */ } setTimeout(() => { location.href = location.pathname; }, 700); }
     };
   }

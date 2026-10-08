@@ -82,9 +82,12 @@ Urutan otomatis: **Groq → Google → OpenRouter → custom**. Mau memaksa sala
 
 ---
 
-## 2. Database: simpan progres solo & berdua (Upstash Redis)
+## 2. Database: WAJIB — satu dunia bersama & progres tersimpan (Upstash Redis)
 
-Ini yang membuat login akun, room permanen, dan lanjut main dari perangkat lain bisa berfungsi.
+Sejak Update 11 game ini **hanya punya satu dunia** (`HNDNS`) yang dimainkan berdua.
+Database inilah yang menyimpan dunia itu dan yang mengunci peran supaya **akunmu selalu
+masuk sebagai Handoyo dan akun Naswa selalu masuk sebagai Naswa**. Tanpa database, akun
+dan progres hanya tersimpan di laptop masing-masing dan peran tidak bisa disinkronkan.
 
 1. Vercel → project kamu → tab **Storage** (atau **Marketplace**) → cari **Upstash for Redis** → **Add Integration / Create**.
 2. Pilih paket **Free**, beri nama (misal `griya-asri-db`), pilih region terdekat (Singapore paling dekat dari Indonesia).
@@ -98,14 +101,21 @@ Ini yang membuat login akun, room permanen, dan lanjut main dari perangkat lain 
 Daftar di [upstash.com](https://upstash.com) → Create Database (Redis) → di halaman database, bagian **REST API**, salin `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN` → masukkan ke Environment Variables Vercel → Redeploy.
 
 ### Cara memastikan database sudah nyala
-1. Buka `https://<domain-kamu>/api/db` → harus muncul `{"db":true}`.
+1. Buka `https://<domain-kamu>/api/db` → harus muncul `{"db":true,"dunia":"HNDNS"}`.
 2. Di layar login game akan tertulis **"✅ Tersambung ke database cloud"**.
-3. Daftar akun (misal `handoyo`), lalu di menu klik **Rumah Permanen HNDNS**. Pasanganmu daftar akunnya sendiri lalu masuk ke room yang sama. Kalian akan terdaftar sebagai Handoyo dan Naswa secara otomatis.
+
+### Langkah pertama kali main berdua (lakukan sekali saja)
+1. **Kamu**: daftar akun (misal `handoyo` + kata sandi) → muncul layar *"Akun ini mau jadi siapa?"* → pilih **Handoyo** → **Masuk ke dunia**.
+2. **Naswa**, di laptopnya: daftar akun sendiri (misal `naswa`) → layar peran akan menampilkan *Handoyo: sudah dipakai: handoyo* → pilih **Naswa** → **Masuk ke dunia**.
+3. Selesai. Mulai sekarang kalian cukup login; perannya **permanen dan tidak bisa tertukar**.
+   Kalau salah pilih, ada tombol **"Lepas / ganti peran"** di layar dunia.
 
 ### Yang tersimpan & batasannya
-- Progres solo: 1 slot per akun. Progres berdua: 1 slot per room.
-- Simpan otomatis tiap 30 detik saat main berdua (60 detik saat solo), saat tab ditutup, dan saat aplikasi diminimalkan.
-- Lukisan: 16 karya terbaru ikut tersimpan ke cloud (dibatasi agar muat di paket gratis). Sisanya tetap ada di perangkat.
+- Satu dunia `HNDNS` dipakai berdua. Yang online lebih dulu otomatis jadi "server"; yang satunya ikut ke dunia yang sama.
+- Kalau salah satu offline, **karakternya dijalankan komputer** (kerja, melukis, jual lukisan, beberes, bahkan trading kripto), jadi dunia tidak pernah berhenti.
+- **Simpan otomatis tiap ±12 detik**, tiap ganti hari, saat tab disembunyikan, dan saat tab ditutup. Status penyimpanan terlihat di bar atas (`💾 14.32`).
+- Progres murni berukuran ±50 KB walau sudah ratusan hari — gambar lukisan disimpan terpisah, jadi simpanan **tidak pernah lagi membengkak sampai ditolak server** (itu bug yang bikin progres berhenti tersimpan setelah beberapa puluh hari).
+- Kalau internet sempat putus, simpanan tetap masuk ke laptop dan **dikirim ulang otomatis** begitu tersambung lagi.
 - Paket gratis Upstash sangat cukup untuk dua pemain.
 
 ---

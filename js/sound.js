@@ -7,6 +7,21 @@
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16];
 
+// nada bel, jumlah ketukan, warna suara, dan panjang sapaan untuk tiap tamu
+const TAMU = {
+  'Bu Ratna':   { bel: [0, 4, 7, 12], ketuk: 2, gelombang: 'sine', pitch: 1.35, sapa: 5, oktaf: true },   // hangat, keibuan
+  'Kak Dinda':  { bel: [7, 9, 12], ketuk: 3, gelombang: 'triangle', pitch: 1.5, sapa: 4 },                 // ceria & cepat
+  Reza:         { bel: [12, 7, 12, 14], ketuk: 2, gelombang: 'square', pitch: 0.95, sapa: 3 },             // nada "notifikasi" ala programmer
+  'Mbak Ayu':   { bel: [5, 9, 12, 16, 19], ketuk: 1, gelombang: 'sine', pitch: 1.45, sapa: 4, oktaf: true },// elegan, seperti galeri seni
+  'Pak Ismail': { bel: [0, 0, 4], ketuk: 4, gelombang: 'sine', pitch: 0.78, sapa: 6 },                     // berat, ketukan mantap
+  'Bu Aisyah':  { bel: [4, 7, 11], ketuk: 2, gelombang: 'sine', pitch: 1.4, sapa: 5 },
+  'Bang Jefri': { bel: [2, 2, 2], ketuk: 5, gelombang: 'triangle', pitch: 1.05, sapa: 3 },                 // ragu-ragu, ketukan banyak
+  'Pak Harjo':  { bel: [0, 5, 0], ketuk: 3, gelombang: 'sine', pitch: 0.85, sapa: 4 },                     // berwibawa
+  'Pak Slamet': { bel: [7, 7], ketuk: 3, gelombang: 'square', pitch: 0.9, sapa: 2 },                       // singkat seperti peluit ronda
+  'Mas Kurir':  { bel: [12, 16], ketuk: 2, gelombang: 'square', pitch: 1.1, sapa: 2 },                     // cepat, buru-buru
+  'Pak Tarno':  { bel: [0, 3, 7], ketuk: 2, gelombang: 'triangle', pitch: 0.88, sapa: 4 },
+  _default:     { bel: [0, 7], ketuk: 2, gelombang: 'sine', pitch: 1, sapa: 3 },
+};
 export class SoundFX {
   constructor() { this.on = true; this.vol = 0.8; this.ctx = null; this.loops = new Map(); this.timers = {}; this.prev = {}; this.noteI = 0; }
   ensure() {
@@ -57,6 +72,19 @@ export class SoundFX {
     }[k];
     if (S) S();
   }
+  // ---------- suara khas tiap tamu ----------
+  // tiap orang punya "lagu bel" sendiri + ketukan + warna suara sapaan
+  guest(nama) {
+    if (!this.on || !this.ensure()) return;
+    const T = TAMU[nama] || TAMU._default;
+    const { bel, ketuk, gelombang, pitch, sapa } = T;
+    bel.forEach((n, i) => { const f = 220 * Math.pow(2, n / 12); this.osc(gelombang, f, 0, 0.55, 0.075, i * 0.26, ['lowpass', 2600]); if (T.oktaf) this.osc('sine', f * 2, 0, 0.3, 0.025, i * 0.26); });
+    const t0 = bel.length * 0.26 + 0.1;
+    for (let i = 0; i < ketuk; i++) { this.burst('lowpass', 420, 1.2, 0.07, 0.085, t0 + i * 0.17); this.osc('sine', 120, 70, 0.08, 0.05, t0 + i * 0.17); }
+    const t1 = t0 + ketuk * 0.17 + 0.25;
+    for (let i = 0; i < sapa; i++) { const f = 150 * pitch * (0.85 + Math.random() * 0.4); this.osc('triangle', f, f * (0.8 + Math.random() * 0.5), 0.12, 0.05, t1 + i * 0.14, ['bandpass', 800 * pitch, 2.2]); }
+  }
+
   // ---------- suara aksi (sekali bunyi) ----------
   shot(k, v, extra = {}) {
     const P = extra.pitch || 1;
