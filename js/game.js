@@ -283,7 +283,12 @@ export class Game {
     if (W.vendor) this.W.vendor.userData.npc.update(dt, Math.sin(performance.now() / 900) > 0.6 ? 'wave' : 'idle');
     if (this.buy) this.updateGhost();
     // jaringan
-    if (this.mode === 'host' && this.peerOnline) { this.netT += dt; this.fullT = (this.fullT || 0) + dt; if (this.netT > 0.18) { this.netT = 0; const full = this.fullT > 6; if (full) this.fullT = 0; this.sendSnap(full); } }
+    if (this.mode === 'host' && this.peerOnline) {
+      // lewat relay server jaraknya dilebarkan: perubahan tetap digabung, tidak ada yang hilang
+      const jeda = this.net && this.net.relay ? 0.6 : 0.18, jedaPenuh = this.net && this.net.relay ? 20 : 6;
+      this.netT += dt; this.fullT = (this.fullT || 0) + dt;
+      if (this.netT > jeda) { this.netT = 0; const full = this.fullT > jedaPenuh; if (full) this.fullT = 0; this.sendSnap(full); }
+    }
     // progres disimpan terus-menerus: lokal + cloud tiap ±15 detik, plus kirim ulang yang gagal
     // penjaga jalur: tamu yang kehilangan sambungan harus menyambung ulang / ambil alih,
     // jangan dibiarkan diam karena dunianya tidak lagi disimulasikan siapa pun
@@ -292,7 +297,7 @@ export class Game {
       if (hidup) this.mati = 0;
       else { this.mati = (this.mati || 0) + dt; if (this.mati > 8) { this.mati = 0; this.linkHilang(); } }
     }
-    this.saveT += dt; if (this.saveT > 12) { this.saveT = 0; this.save(false); }
+    this.saveT += dt; if (this.saveT > 6) { this.saveT = 0; this.save(false); }
     this.ulangT = (this.ulangT || 0) + dt; if (this.ulangT > 45) { this.ulangT = 0; if (adaTunda()) kirimUlangTunda(); }
     try { this.ui.frame(dt); } catch (e) { this.laporGalat('tampilan', e); }
     if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
@@ -612,7 +617,7 @@ export class Game {
     try { tulisLokal(data, gal); } catch (e) { /* abaikan */ }
     const now = Date.now();
     if (!cloud()) { this.simpanStatus = 'tersimpan di perangkat ini'; this.ui.saved && this.ui.saved(); return; }
-    if (!force && now - (this._cloudT || 0) < 15000) return;
+    if (!force && now - (this._cloudT || 0) < 8000) return;
     if (this._simpanJalan) { this._simpanLagi = true; return; }
     this._cloudT = now; this._simpanJalan = true; this.simpanStatus = 'menyimpan…'; this.simpanGagal = false;
     simpanDunia(data, gal)
@@ -643,7 +648,7 @@ export class Game {
         if (!this.isHost || this.pausedByUI()) return;
         while (dt > 0) { const st = Math.min(0.05, dt); this.hh.tick(st); dt -= st; }
         if (this.peerOnline) this.sendSnap(false);
-        this.saveT += 0.25; if (this.saveT > 12) { this.saveT = 0; this.save(false); }
+        this.saveT += 0.25; if (this.saveT > 6) { this.saveT = 0; this.save(false); }
       }, 250);
     });
     this._bgIv = 0;

@@ -29,13 +29,17 @@ export class Net {
     p.on('disconnected', () => { setTimeout(() => { try { if (!p.destroyed) p.reconnect(); } catch (e) { /* abaikan */ } }, 1500); });
     return p;
   }
-  host(code) {
-    this.isHost = true;
+  host(code) { return this.daftar(PREFIX + code); }
+  // Daftarkan identitas koneksi SENDIRI (unik per pemain, bukan satu id rebutan).
+  // Dulu kedua laptop memakai id yang sama (griyaasri-hn-HNDNS), jadi yang masuk
+  // belakangan selalu ditolak "unavailable-id" dan tersangkut di lobi.
+  daftar(id) {
+    this.isHost = true; this.peerId = id;
     return new Promise((res, rej) => {
-      const p = this._peer(PREFIX + code); this.peer = p;
+      const p = this._peer(id); this.peer = p;
       const to = setTimeout(() => rej(Object.assign(new Error('Server sinyal tidak merespons'), { type: 'timeout' })), 15000);
-      p.on('open', () => { clearTimeout(to); res(code); });
-      p.on('error', (e) => { clearTimeout(to); rej(Object.assign(new Error(e.type === 'unavailable-id' ? 'Kode room sedang dipakai host lain' : (e.message || e.type)), { type: e.type })); });
+      p.on('open', (nyata) => { clearTimeout(to); this.peerId = nyata || id; res(this.peerId); });
+      p.on('error', (e) => { clearTimeout(to); rej(Object.assign(new Error(e.type === 'unavailable-id' ? 'Identitas koneksi sedang dipakai sesi lain' : (e.message || e.type)), { type: e.type })); });
       p.on('connection', (c) => this._incoming(c));
     });
   }
@@ -55,14 +59,17 @@ export class Net {
     });
     c.on('error', () => {});
   }
-  join(code, info = {}) {
+  join(code, info = {}) { return this.sambung(PREFIX + String(code).toUpperCase().trim(), info); }
+  // Sambung ke identitas pasangan yang diumumkan lewat database.
+  sambung(idTujuan, info = {}) {
     this.isHost = false;
     return new Promise((res, rej) => {
-      const p = this._peer(); this.peer = p;
-      const to = setTimeout(() => rej(Object.assign(new Error('Room tidak merespons / diblokir jaringan'), { type: 'timeout' })), 12000);
-      p.on('error', (e) => { clearTimeout(to); rej(Object.assign(new Error(e.type === 'peer-unavailable' ? 'Host belum online' : (e.message || e.type)), { type: e.type })); });
+      const p = this._peer(this.myId || undefined); this.peer = p;
+      const to = setTimeout(() => rej(Object.assign(new Error('Pasangan tidak merespons / diblokir jaringan'), { type: 'timeout' })), 9000);
+      p.on('error', (e) => { clearTimeout(to); rej(Object.assign(new Error(e.type === 'peer-unavailable' ? 'Pasangan belum online' : (e.message || e.type)), { type: e.type })); });
+      p.on('connection', (c) => this._incoming(c));
       p.on('open', () => {
-        const c = p.connect(PREFIX + code.toUpperCase().trim(), { reliable: true, serialization: 'json' });
+        const c = p.connect(idTujuan, { reliable: true, serialization: 'json' });
         c.on('open', () => { clearTimeout(to); this._bind(c); this.lastRx = Date.now(); c.send({ t: 'hello', uid: this.uid, ...info }); res(); });
         c.on('data', (d) => { const m = typeof d === 'string' ? JSON.parse(d) : d; this.lastRx = Date.now(); if (m.t === 'full') { this.onFull(); return; } if (m.t === 'bye') { if (this.conn) { const cc = this.conn; this.conn = null; try { cc.close(); } catch (e) { /* abaikan */ } this.onClose(); } return; } if (m.t !== 'ping') this.onMsg(m); });
         c.on('error', () => {});

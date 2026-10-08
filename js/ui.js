@@ -210,7 +210,9 @@ export class UI {
     const net = $('#uNet');
     { net.style.display = ''; const on = g.mode === 'guest' ? true : g.peerOnline;
       const pas = g.pasangan || SIM_NAMES.find((n) => n !== g.peran) || 'pasangan';
-      net.innerHTML = `<i class="dot ${on ? 'on' : ''}"></i>${g.mode === 'host' ? 'Kamu server' : 'Tersambung'} · ${on ? 'Main berdua 💞' : `${esc(pas)} dijalankan komputer 🤖`}`; }
+      const lewatServer = !!(g.net && g.net.relay);
+      net.innerHTML = `<i class="dot ${on ? 'on' : ''}"></i>${g.mode === 'host' ? 'Kamu server' : 'Tersambung'}${lewatServer ? ' 🛰️' : ''} · ${on ? `Main berdua 💞${lewatServer ? ' (lewat server)' : ''}` : `${esc(pas)} dijalankan komputer 🤖`}`;
+      net.title = lewatServer ? 'Koneksi langsung diblokir jaringan, jadi dunia dibagi lewat server. Gerakan sedikit lebih lambat dan obrolan suara tidak tersedia.' : 'Koneksi langsung antar-laptop'; }
     // status penyimpanan progres
     { const sv = $('#uSimpan'); const st = g.simpanStatus || 'menunggu…';
       sv.classList.toggle('kerja', /menyimpan/.test(st)); sv.classList.toggle('gagal', !!g.simpanGagal);

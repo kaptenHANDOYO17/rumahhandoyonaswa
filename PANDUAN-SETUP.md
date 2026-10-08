@@ -122,34 +122,42 @@ Daftar di [upstash.com](https://upstash.com) → Create Database (Redis) → di 
 
 ## 3. Multiplayer: yang perlu & tidak perlu diatur
 
-**Tidak perlu diatur apa pun** — main berdua sudah jalan memakai server sinyal publik PeerJS.
+**Tidak ada yang wajib diatur** — main berdua sudah jalan memakai server sinyal publik PeerJS,
+dan kalau koneksi langsung diblokir jaringan, game otomatis beralih lewat server (database).
 
-Atur ini hanya kalau koneksi/suara sering putus (biasanya di jaringan seluler atau Wi-Fi kantor yang ketat):
+### Bagaimana kalian berdua tersambung
+1. Tiap laptop mendaftarkan **identitas koneksi sendiri** yang unik, lalu mengumumkannya ke database.
+2. Database menentukan siapa yang menjalankan dunia: yang sudah di dalam tetap jadi server.
+3. Yang baru masuk menyambung ke identitas koneksi pasangannya (koneksi langsung, paling cepat).
+4. Gagal tersambung langsung dalam ±30 detik → otomatis lewat server (🛰️ di bar atas).
 
-### 3a. TURN relay (paling berdampak untuk suara)
-Ambil kredensial dari penyedia TURN (contoh: Metered, Twilio, atau server coturn sendiri), lalu isi:
+### 3a. TURN relay — bikin koneksi langsung jauh lebih sering berhasil
+Kalau sering jatuh ke mode 🛰️, artinya jaringan kalian butuh TURN. Ini yang paling berdampak,
+terutama untuk obrolan suara (suara hanya tersedia pada koneksi langsung).
 
-| Key | Value (contoh) |
-|---|---|
-| `TURN_URLS` | `turn:global.relay.metered.ca:80,turns:global.relay.metered.ca:443` |
-| `TURN_USER` | username dari penyedia |
-| `TURN_PASS` | password dari penyedia |
-
-Cek hasilnya: buka `https://<domain-kamu>/api/config` → harus muncul `"turn":true`.
+1. Daftar gratis di [metered.ca](https://www.metered.ca/tools/openrelay/) atau Twilio.
+2. Isi Environment Variables di Vercel:
+   ```
+   TURN_URLS=turn:relay.example.com:80,turns:relay.example.com:443
+   TURN_USER=namauser
+   TURN_PASS=katasandi
+   ```
+3. Redeploy. Cek `https://<domain-kamu>/api/config` — harus memuat entri `turn:`.
 
 ### 3b. Server sinyal PeerJS sendiri (opsional)
-Folder `server/` di proyek ini sudah berisi servernya.
-1. Deploy folder `server/` ke Railway / Render / Fly.io / VPS. Perintahnya: `npm install` lalu `npm start`.
-2. Catat domainnya, lalu isi di Vercel:
+Server publik PeerJS kadang penuh. Kalau mau punya sendiri, deploy `server/peer-server.js`
+ke Railway/Render/Fly.io lalu isi di Vercel:
+```
+PEER_HOST=domain-server-kamu
+PEER_PORT=443
+PEER_PATH=/griya
+PEER_SECURE=true
+```
 
-| Key | Value |
-|---|---|
-| `PEER_HOST` | `nama-servermu.up.railway.app` |
-| `PEER_PORT` | `443` |
-| `PEER_PATH` | `/griya` |
-| `PEER_SECURE` | `true` |
-
-3. Redeploy. Game akan otomatis memakai server itu.
+### 3c. Berapa kuota database yang dipakai mode 🛰️?
+Mode lewat server memakai ±4–6 operasi database tiap 1,2–3 detik untuk kalian berdua.
+Paket gratis Upstash (500 ribu operasi/bulan) cukup untuk puluhan jam bermain.
+Kalau koneksi langsung berhasil, mode ini tidak dipakai sama sekali dan kuotanya tidak terpakai.
 
 ---
 

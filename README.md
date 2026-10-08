@@ -18,12 +18,12 @@ vercel --prod
 ```
 
 ## Main berdua (sekarang hanya ada SATU dunia)
-1. **Wajib**: aktifkan database Upstash dulu (lihat `PANDUAN-SETUP.md` bagian 2). Itu yang mengunci peran.
+1. **Wajib**: aktifkan database Upstash dulu (lihat `PANDUAN-SETUP.md` bagian 2). Itu yang mengunci peran **dan yang menentukan siapa menjalankan dunia**.
 2. **Kamu**: daftar akun → pilih **Handoyo** (sekali saja, lalu permanen) → **Masuk ke dunia**.
 3. **Naswa** di laptopnya: daftar akun sendiri → pilih **Naswa** → **Masuk ke dunia**.
 4. Sejak itu cukup login — login-mu selalu jadi Handoyo, login Naswa selalu jadi Naswa, **tidak akan tertukar**.
 5. Siapa pun yang online lebih dulu otomatis jadi "server". Kalau salah satu keluar, **karakternya dijalankan komputer** dan progres tetap tersimpan.
-6. Kalau gagal tersambung di jaringan kantor/seluler tertentu, coba WiFi yang sama atau hotspot. (P2P memakai server sinyal PeerJS + STUN.)
+6. Kalau jaringan memblokir koneksi langsung, game otomatis beralih **lewat server** (ikon 🛰️) — kalian tetap di save yang sama, hanya gerakannya sedikit lebih lambat dan tanpa obrolan suara.
 
 ## Fitur baru
 - **Dompet masing-masing Rp 10 miliar.** Gaji masuk ke dompet yang bekerja, belanja memotong dompet karakter yang sedang kamu pegang. Bisa kirim uang ke pasangan di tab Keuangan. Simpanan lama otomatis diisi 10 miliar per orang.
@@ -37,6 +37,53 @@ vercel --prod
 
 
 
+
+## Update 11.2 — Dua Laptop Akhirnya Bisa Masuk Bersamaan
+
+### 🔴 Kenapa dulu hanya satu orang yang bisa masuk
+Kedua laptop berebut **satu identitas koneksi yang sama** (`griyaasri-hn-HNDNS`).
+Siapa pun yang masuk duluan mengunci identitas itu; yang kedua gagal menyambung,
+lalu ikut mencoba merebutnya, ditolak server sinyal (`unavailable-id`), dan
+tersangkut di lobi. Lebih parah lagi: setelah keluar, identitas itu masih
+tertahan di server sinyal sampai ±1 menit, jadi orang yang sama pun tidak bisa
+masuk lagi.
+
+### ✅ Perbaikannya
+1. **Identitas koneksi sendiri-sendiri.** Tiap pemain mendaftarkan identitas unik
+   (`…-Handoyo-ab12`, `…-Naswa-xy79`) dengan akhiran acak, lalu mengumumkannya
+   lewat database. Tidak ada lagi rebutan, dan sesi lama tidak pernah menghalangi.
+2. **Database yang menentukan siapa server**, bukan siapa cepat merebut identitas.
+   Yang sudah di dalam tetap menjalankan dunia; yang baru masuk menyambung ke dia.
+   Kalau keduanya masuk di detik yang sama, Handoyo yang menang supaya hasilnya pasti.
+3. **Dunia tidak bisa terbelah dua.** Kalau karena suatu hal kalian berdua sempat
+   merasa jadi server, yang satu otomatis menyimpan progresnya lalu mengalah dan
+   bergabung — jadi progresnya tetap satu.
+
+### 🛰️ Kalau jaringan memblokir koneksi langsung
+Sebagian jaringan (kantor, kampus, seluler dengan NAT ketat) memblokir koneksi
+langsung antar-browser. Sekarang ada **jalan cadangan lewat server**: dunia dibagi
+berdua melalui database, jadi kalian **tetap masuk ke save yang sama dan tetap bisa
+berinteraksi**. Tandanya ada ikon 🛰️ di bar atas.
+
+- Gerakan terasa sedikit lebih lambat (jeda ±1–3 detik), dan obrolan suara tidak
+  tersedia di mode ini. Selain itu semuanya berjalan normal.
+- Hemat kuota: ringkasan dunia digabung (bukan ditumpuk) dan denyutnya melambat
+  sendiri saat dunia sepi. Pesan sekali-kirim seperti obrolan diantre supaya tidak
+  ada yang hilang.
+- Kalau ingin selalu mendapat koneksi langsung yang cepat, isi TURN relay di
+  Vercel (lihat `PANDUAN-SETUP.md` bagian 3a).
+
+### 💾 Progres disimpan lebih rapat
+Dari tiap ±12 detik menjadi **tiap ±6 detik**, dan server yang mengalah akan
+menyimpan dulu sebelum bergabung — supaya tidak ada perubahan yang tertinggal.
+
+### ✅ Diuji
+Uji otomatis menjalankan dua laptop sungguhan di browser terpisah **dengan koneksi
+langsung sengaja diblokir total**: Handoyo masuk duluan → Naswa menyusul → keduanya
+tersambung → perintah Naswa sampai ke dunia → perubahan dunia & jam sampai ke Naswa →
+obrolan sampai → Handoyo keluar lalu masuk lagi → tetap di dunia yang sama, peran tidak
+tertukar. **12 dari 12 pemeriksaan lulus.** Jalur koneksi langsung juga diuji terpisah
+dan tetap berfungsi.
 
 ## Update 11.1 — Perbaikan Bug: Tombol Tutup, Macet Setelah Melukis, dan Jaring Pengaman
 

@@ -172,5 +172,15 @@ export function simpanSaatKeluar(data) {
   } catch (e) { /* abaikan */ }
 }
 // detak kehadiran (supaya pasangan tahu kita online, dan dunia "tetap hidup")
-export async function beat(info = {}) { if (!cloud()) return null; try { return (await api('beat', info)).live; } catch (e) { return null; } }
+// Detak kehadiran + penentuan server. Mengembalikan seluruh jawaban server
+// (siapa yang menjalankan dunia, identitas koneksi pasangan, mode sambungannya).
+export async function beat(info = {}) {
+  if (!cloud()) return null;
+  try { const j = await api('beat', info); Acct.server = j.server; Acct.pasangan = j.pasangan; return j; } catch (e) { return null; }
+}
+// Relay: titipkan pesan lewat database kalau koneksi langsung tidak bisa terbentuk.
+export async function sync(muatan) {
+  if (!cloud()) throw new Error('Relay butuh database cloud');
+  return api('sync', muatan);
+}
 export async function resetDunia() { if (!cloud()) { try { localStorage.removeItem(LS_SIMPAN); localStorage.removeItem(LS_GALERI); } catch (e) { /* abaikan */ } return true; } await api('reset', { konfirmasi: 'HAPUS' }); try { localStorage.removeItem(LS_SIMPAN); localStorage.removeItem(LS_GALERI); } catch (e) { /* abaikan */ } return true; }

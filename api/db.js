@@ -16,6 +16,10 @@ const KUNCI_SIMPAN = 'simpan:' + DUNIA;      // progres dunia (JSON)
 const KUNCI_GALERI = 'galeri:' + DUNIA;      // lukisan (dipisah supaya progres tetap kecil)
 const KUNCI_META = 'meta:' + DUNIA;
 const KUNCI_HIDUP = 'hidup:' + DUNIA;        // siapa online
+const RELAY_KE_TAMU = 'relay:' + DUNIA + ':tamu';   // ringkasan dunia terbaru (boleh ditimpa)
+const RELAY_PESAN_TAMU = 'relay:' + DUNIA + ':tamuPesan'; // pesan sekali-kirim server -> tamu (antre, tidak boleh hilang)
+const RELAY_KE_HOST = 'relay:' + DUNIA + ':host';   // antrean perintah tamu -> server
+const HIDUP_MS = 25000;                      // dianggap online kalau berdetak < 25 detik lalu
 
 const BATAS_SIMPAN = 3000000;                // 3 MB — progres murni ±50 KB, jadi sangat longgar
 const BATAS_GALERI = 3000000;
@@ -37,7 +41,9 @@ const peranDari = (d, user) => PERAN.find((p) => d.peran[p] === user) || null;
 async function siapaOnline() {
   const live = (await kv.getJSON(KUNCI_HIDUP)) || { users: {} };
   const now = Date.now(); const out = {};
-  for (const u in live.users) if (now - live.users[u].at < 45000) out[u] = live.users[u];
+  for (const u in live.users) if (now - live.users[u].at < HIDUP_MS) out[u] = live.users[u];
+  // server dianggap sah hanya kalau orangnya masih online
+  if (live.host && !out[live.host]) live.host = null;
   return { live, online: out };
 }
 
@@ -105,15 +111,67 @@ module.exports = async (req, res) => {
       const { online } = await siapaOnline();
       return res.status(200).json({ dunia: DUNIA, peran, terisi: dunia.peran, online, meta: await kv.getJSON(KUNCI_META) });
     }
+    // Detak kehadiran + penentuan SERVER.
+    //  · peerId: identitas koneksi unik milik pemain ini, diumumkan ke pasangan
+    //  · mode: 'p2p' (langsung) atau 'relay' (lewat server)
+    //  · minta: true  -> pemain ini ingin jadi server
+    // Database yang memutuskan, bukan siapa cepat merebut identitas koneksi.
     if (a === 'beat') {
       if (!peran) return res.status(403).json({ error: 'Belum punya peran di dunia ini' });
       const { live, online } = await siapaOnline();
+      const now = Date.now();
       live.users = online;
-      live.users[user] = { at: Date.now(), peran, host: !!b.host, hari: b.hari || 0 };
-      if (b.host) live.host = user;
-      live.at = Date.now();
+      live.users[user] = { at: now, peran, peerId: b.peerId || (live.users[user] || {}).peerId || null, mode: b.mode || 'p2p', hari: b.hari || 0 };
+      const hostLama = live.host && live.users[live.host] ? live.host : null;
+      if (b.minta || b.host) {
+        if (!hostLama || hostLama === user) live.host = user;
+        // dua-duanya meminta bersamaan: Handoyo yang menang supaya hasilnya pasti
+        else if (live.users[hostLama] && live.users[hostLama].peran === 'Naswa' && peran === 'Handoyo' && now - (live.hostAt || 0) < 6000) live.host = user;
+        if (live.host === user) live.hostAt = now;
+      }
+      live.at = now;
       await kv.setJSON(KUNCI_HIDUP, live, 120);
-      return res.status(200).json({ live, peran, terisi: dunia.peran });
+      const pasangan = Object.keys(live.users).find((u) => u !== user) || null;
+      return res.status(200).json({
+        live, peran, terisi: dunia.peran,
+        server: live.host,                       // siapa yang menjalankan dunia
+        akuServer: live.host === user,
+        pasangan: pasangan ? { user: pasangan, ...live.users[pasangan] } : null,
+      });
+    }
+    // ---------------- relay: jalan cadangan kalau koneksi langsung gagal ----------------
+    if (a === 'sync') {
+      if (!peran) return res.status(403).json({ error: 'Belum punya peran di dunia ini' });
+      const kirim = Array.isArray(b.kirim) ? b.kirim : [];
+      // Ringkasan dunia boleh ditimpa (yang terbaru paling benar), tapi pesan
+      // sekali-kirim seperti obrolan, perintah, dan bunyi HARUS diantre —
+      // kalau ditimpa, pesan yang belum sempat diambil akan hilang.
+      const ringkas = kirim.filter((m) => m && (m.t === 'snap' || m.t === 'dsnap'));
+      const sekali = kirim.filter((m) => m && m.t !== 'snap' && m.t !== 'dsnap');
+      const antreKe = b.sebagai === 'host' ? RELAY_PESAN_TAMU : RELAY_KE_HOST;
+      const antreDari = b.sebagai === 'host' ? RELAY_KE_HOST : RELAY_PESAN_TAMU;
+      if (sekali.length) {
+        try { await kv.cmd('RPUSH', antreKe, ...sekali.map((m) => JSON.stringify(m))); await kv.cmd('EXPIRE', antreKe, 60); } catch (e) { /* abaikan */ }
+      }
+      let masuk = [];
+      try {
+        const r = await kv.cmd('LPOP', antreDari, 60);
+        if (Array.isArray(r)) masuk = r.filter(Boolean).map((x) => JSON.parse(x));
+        else if (r) masuk = [JSON.parse(r)];
+      } catch (e) { masuk = []; }
+      if (b.sebagai === 'host') {
+        // SELALU ditulis, walau dunia sedang sepi: nomor urutnya jadi denyut
+        // supaya tamu tahu servernya masih hidup. Tanpa ini jalur relay
+        // dianggap mati saat tidak ada yang berubah.
+        await kv.cmd('SET', RELAY_KE_TAMU, JSON.stringify({ seq: b.seq || Date.now(), pesan: ringkas }), 'EX', 60);
+        return res.status(200).json({ pesan: masuk, hidup: masuk.length > 0 });
+      }
+      // tamu: ambil ringkasan dunia terbaru + pesan yang diantre
+      const raw = await kv.cmd('GET', RELAY_KE_TAMU);
+      const paket = raw ? JSON.parse(raw) : null;
+      let seq = b.sejak || 0; let baru = false;
+      if (paket && (!b.sejak || paket.seq > b.sejak)) { masuk = [...(paket.pesan || []), ...masuk]; seq = paket.seq; baru = true; }
+      return res.status(200).json({ pesan: masuk, seq, hidup: baru });
     }
 
     // ---------------- simpanan: satu dunia, dipakai bersama ----------------
@@ -145,7 +203,7 @@ module.exports = async (req, res) => {
     // ---------------- mulai dunia dari awal (perlu dua-duanya setuju? cukup konfirmasi klien) ----------------
     if (a === 'reset') {
       if (String(b.konfirmasi || '') !== 'HAPUS') return res.status(400).json({ error: 'konfirmasi tidak cocok' });
-      await Promise.all([kv.cmd('DEL', KUNCI_SIMPAN), kv.cmd('DEL', KUNCI_GALERI), kv.cmd('DEL', KUNCI_META)]);
+      await Promise.all([kv.cmd('DEL', KUNCI_SIMPAN), kv.cmd('DEL', KUNCI_GALERI), kv.cmd('DEL', KUNCI_META), kv.cmd('DEL', RELAY_KE_TAMU), kv.cmd('DEL', RELAY_PESAN_TAMU), kv.cmd('DEL', RELAY_KE_HOST)]);
       return res.status(200).json({ ok: true });
     }
     return res.status(400).json({ error: 'aksi tidak dikenal' });
