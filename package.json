@@ -1,0 +1,19 @@
+{
+  "name": "rumah-handoyo-naswa",
+  "version": "12.0.0",
+  "private": true,
+  "description": "Rumah Handoyo & Naswa — simulasi rumah tangga 3D untuk dimainkan berdua",
+  "scripts": {
+    "mulai": "npx --yes serve -l 8000 .",
+    "www": "node alat/siapkan-www.mjs",
+    "apk:siapkan": "npm run www && npx --yes @capacitor/cli@6 add android",
+    "apk:sync": "npm run www && npx --yes @capacitor/cli@6 sync android",
+    "apk:debug": "npm run apk:sync && cd android && ./gradlew assembleDebug",
+    "apk:rilis": "npm run apk:sync && cd android && ./gradlew assembleRelease"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0"
+  }
+}

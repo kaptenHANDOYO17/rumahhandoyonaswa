@@ -11,6 +11,7 @@ import { Game, readSave, clearSave } from './game.js';
 import { UI } from './ui.js';
 import { Net, setNetConfig } from './net.js';
 import { RelayNet } from './relay.js';
+import { siapkanTombol } from './pasang.js';
 import { SIM_NAMES } from './data.js';
 import {
   Acct, DUNIA, PERAN, probe, auth, logout, cloud, masuk,
@@ -24,7 +25,7 @@ const quality = { low: mobile, shadows: !mobile, shadowSize: mobile ? 1024 : 204
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-function showPane(p) { document.querySelectorAll('.lpane').forEach((x) => (x.hidden = x.dataset.p !== p)); status.textContent = ''; if (p === 'peran') renderPeran(); if (p === 'dunia') renderDunia(); }
+function showPane(p) { document.querySelectorAll('.lpane').forEach((x) => (x.hidden = x.dataset.p !== p)); status.textContent = ''; if (p === 'peran') renderPeran(); if (p === 'dunia') { renderDunia(); siapkanTombol(); } }
 function setStatus(t, bad) { status.textContent = t; status.classList.toggle('bad', !!bad); }
 document.querySelectorAll('[data-pane]').forEach((b) => b.addEventListener('click', () => showPane(b.dataset.pane)));
 
@@ -36,6 +37,7 @@ document.querySelectorAll('[data-pane]').forEach((b) => b.addEventListener('clic
     ? '✅ Tersambung ke database cloud — satu dunia bersama, progres tersimpan otomatis dan bisa dilanjutkan dari laptop mana pun.'
     : 'ℹ️ Database cloud belum diatur di server. Akun & progres disimpan di laptop ini saja (lihat PANDUAN-SETUP.md untuk mengaktifkan database).';
   setStatus('');
+  siapkanTombol();
   if (masuk() && (Acct.session.local || Acct.db)) await lanjutSetelahMasuk(); else showPane('login');
 })();
 

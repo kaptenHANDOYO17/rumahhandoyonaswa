@@ -16,16 +16,18 @@ const LS_TUNDA = 'griyaasri-tunda-v1';             // simpanan yang gagal dikiri
 const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
 
+import { api as alamat, modeAplikasi } from './konfigurasi.js';
+
 export const Acct = { db: null, session: lsGet(LS_SESS), config: null, peran: null, terisi: {}, online: {}, meta: null };
 if (Acct.session && Acct.session.peran) Acct.peran = Acct.session.peran;
 
 export async function probe() {
-  try { const r = await fetch('/api/db'); Acct.db = r.ok ? !!(await r.json()).db : false; } catch (e) { Acct.db = false; }
-  try { const r = await fetch('/api/config'); if (r.ok) Acct.config = await r.json(); } catch (e) { Acct.config = null; }
+  try { const r = await fetch(alamat('/api/db')); Acct.db = r.ok ? !!(await r.json()).db : false; } catch (e) { Acct.db = false; }
+  try { const r = await fetch(alamat('/api/config')); if (r.ok) Acct.config = await r.json(); } catch (e) { Acct.config = null; }
   return Acct.db;
 }
 async function api(a, body = {}) {
-  const r = await fetch('/api/db', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a, token: Acct.session && Acct.session.token, ...body }) });
+  const r = await fetch(alamat('/api/db'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a, token: Acct.session && Acct.session.token, ...body }) });
   let j = {}; try { j = await r.json(); } catch (e) { /* abaikan */ }
   if (!r.ok) { const err = new Error(j.error || `Server ${r.status}`); err.status = r.status; err.data = j; if (r.status === 401 && a !== 'login' && a !== 'register') logout(); throw err; }
   return j;
@@ -168,7 +170,7 @@ export function simpanSaatKeluar(data) {
   if (!cloud() || !navigator.sendBeacon) return;
   try {
     const body = JSON.stringify({ a: 'save', token: Acct.session.token, data, paksa: true });
-    if (body.length < 500000) navigator.sendBeacon('/api/db', new Blob([body], { type: 'application/json' }));
+    if (body.length < 500000) navigator.sendBeacon(alamat('/api/db'), new Blob([body], { type: 'application/json' }));
   } catch (e) { /* abaikan */ }
 }
 // detak kehadiran (supaya pasangan tahu kita online, dan dunia "tetap hidup")

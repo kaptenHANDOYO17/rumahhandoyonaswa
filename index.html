@@ -8,7 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./css/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏡</text></svg>">
+<link rel="icon" href="./ikon/ikon-192.png">
+<link rel="apple-touch-icon" href="./ikon/apple-touch-icon.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="description" content="Simulasi rumah tangga 3D untuk dimainkan berdua. Satu dunia bersama yang terus hidup.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Griya Asri">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }</script>
 <script src="./vendor/peerjs.min.js"></script>
 </head>
@@ -49,6 +56,7 @@
       <p class="lq" id="lPeranKu"></p>
       <div id="lInfoDunia" class="lrooms"></div>
       <button class="btn big" id="lMasuk">▶ Masuk ke dunia</button>
+      <button class="btn big alt" id="lPasang" hidden>📲 Pasang di perangkat ini <small>buka seperti aplikasi, bisa offline</small></button>
       <div class="lrow"><button class="lnk" id="lGantiPeran">Lepas / ganti peran</button><button class="lnk lOut">Keluar akun</button></div>
       <button class="lnk danger" id="lReset">Hapus progres dunia &amp; mulai dari hari ke-1</button>
     </div>
@@ -58,5 +66,12 @@
 </div>
 
 <script type="module" src="./js/main.js"></script>
+<script>
+  // Daftarkan service worker supaya game bisa dipasang sebagai aplikasi
+  // dan tetap terbuka walau sedang tidak ada internet.
+  if ('serviceWorker' in navigator && location.protocol === 'https:' || location.hostname === 'localhost') {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  }
+</script>
 </body>
 </html>

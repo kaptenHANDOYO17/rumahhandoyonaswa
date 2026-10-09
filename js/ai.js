@@ -8,7 +8,7 @@ const load = () => { try { return JSON.parse(localStorage.getItem(LS) || '{}'); 
 export const AI = { key: '', model: 'gemma-4-26b-a4b-it', enabled: true, ambient: true, server: null, last: 0, calls: [], lastError: '', ...load() };
 export function saveAI() { try { localStorage.setItem(LS, JSON.stringify({ key: AI.key, model: AI.model, enabled: AI.enabled, ambient: AI.ambient })); } catch (e) { /* abaikan */ } }
 export async function probeServer() {
-  try { const r = await fetch('/api/ai', { method: 'GET' }); if (!r.ok) throw new Error(r.status); const j = await r.json(); AI.server = !!j.ok; if (j.model) AI.serverModel = j.model; if (j.provider) AI.serverProvider = j.provider; } catch (e) { AI.server = false; }
+  try { const r = await fetch(alamat('/api/ai'), { method: 'GET' }); if (!r.ok) throw new Error(r.status); const j = await r.json(); AI.server = !!j.ok; if (j.model) AI.serverModel = j.model; if (j.provider) AI.serverProvider = j.provider; } catch (e) { AI.server = false; }
   return AI.server;
 }
 export const aiReady = () => AI.enabled && (AI.server || !!AI.key);
@@ -23,7 +23,7 @@ export async function aiAsk(prompt, maxTokens = 120) {
   try {
     let text = null;
     if (AI.server) {
-      const r = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: full, maxTokens }) });
+      const r = await fetch(alamat('/api/ai'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: full, maxTokens }) });
       if (r.ok) text = (await r.json()).text;
     }
     if (!text && AI.key) {

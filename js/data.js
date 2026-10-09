@@ -4,7 +4,8 @@
 // ============================================================
 
 export const CELL = 0.25;
-export const GRID = { minX: -22, maxX: 22, minZ: -14, maxZ: 20 };
+// Diperluas: ke utara sampai halaman Panti Asuhan (z 32), ke selatan untuk ruang bawah tanah (z -26).
+export const GRID = { minX: -22, maxX: 22, minZ: -26, maxZ: 32 };
 export const LOT = { minX: -13, maxX: 13, minZ: -11, maxZ: 11 };
 export const HOUSE = { minX: -8, maxX: 8, minZ: -6, maxZ: 6, wallH: 2.8, wallT: 0.15 };
 export const PI = Math.PI;

@@ -38,6 +38,77 @@ vercel --prod
 
 
 
+## Update 12 — Panti Asuhan, Satwa, Kisah Warga, Ruang Bawah Tanah & APK
+
+### 🏠 Panti Asuhan "Harapan Bunda" di seberang jalan
+Seberang jalan dulu kosong melompong. Sekarang ada panti asuhan sungguhan:
+bangunan berpelana tiga blok dengan teras bertiang, jendela berkusen yang menyala
+saat malam, papan nama, tiang bendera merah putih, halaman bermain (ayunan,
+perosotan, jungkat-jungkit, bak pasir, gawang mini), kebun sayur anak, jemuran,
+dan pohon mangga.
+
+Dihuni **10 anak yatim piatu** — Riko, Sari, Bagas, Nabila, Dimas, Putri, Fajar,
+Aisyah, Yoga, Melati — plus **Bu Asih** (pengasuh 20 tahun) dan **Kak Rina** (relawan).
+Masing-masing punya umur, sifat, dan cita-cita sendiri, dengan rutinitas harian:
+mengaji pagi, bermain sore, belajar malam, masuk ke dalam saat larut.
+
+Yang bisa kalian lakukan di gerbangnya: **berdonasi**, **membagikan makanan**,
+**mengajar membaca**, **mengajar menggambar** (khusus Naswa), **mengajar komputer**
+(khusus Handoyo), **main bersama**, **dorong ayunan**, dan **bikin istana pasir**.
+
+### 📖 Kisah Warga — tiap NPC punya cerita yang berkembang
+Menu ☰ → **📖 Kisah Warga**. Setiap warga punya cerita hidup 5 bab yang terbuka
+pelan-pelan — bukan acak, tapi dari apa yang **benar-benar kalian lakukan** bersama
+mereka. Ngobrol, membantu, berbelanja, mengajar, berdonasi; semuanya menabung poin.
+
+25 warga punya kisah penuh: dari Pak Ismail yang berhenti nyetir setelah hampir
+menabrak anak sekolah, Mbak Sri yang mengirim seluruh gajinya untuk adiknya,
+sampai Sari si anak panti yang menggambar hal yang sama berulang-ulang —
+rumah dengan taman bunga dan dua sosok dewasa tanpa wajah.
+
+### 🦋 Satwa kecil di mana-mana
+Kupu-kupu di kebun, capung melayang di atas sawah, **kunang-kunang saat malam**,
+burung gereja yang mematuk lalu terbang, ayam kampung di dekat warung, cicak di
+dinding saat lampu menyala, katak melompat saat hujan, barisan semut menyusuri
+halaman, dan **ular sawah** yang meliuk di pematang — sesekali menyelinap masuk ke
+halaman rumah. Bisa diusir pakai sapu, atau diamati dulu dari jauh.
+
+Semuanya InstancedMesh: seluruh modul ini hanya menambah ±8 draw call.
+
+### ◻️ Ruang bawah tanah: "Kamar Putih"
+Instalasi seni Naswa tentang depresi, di balik pintu baja di pojok rumah.
+Kotak beton tanpa jendela: kamar serba putih yang terlalu terang, satu lampu neon
+berkedip (satu lagi sudah mati), pipa bocor yang menetes ke genangan beriak, satu
+kursi kayu menghadap tembok kosong, sembilan kanvas nyaris hitam — yang kalau
+didekati ternyata masing-masing punya satu titik terang kecil — dan dinding penuh
+catatan tulisan tangan tentang hari-hari yang berat.
+
+Di sudut terakhir ada lampu hangat dan telepon tua yang masih menyala. Itu titik
+balik karyanya: **ruangan ini dibuat untuk ditinggalkan, bukan untuk ditinggali.**
+
+Berada di dalam terlalu lama menurunkan suasana hati; naik ke atas memulihkannya.
+
+### 🎨 Aset yang dulu masih polos, sekarang berwajah
+- **26 warga jauh** dulu cuma kapsul **tanpa kepala sama sekali**. Sekarang punya
+  kepala, rambut/kerudung, dua mata, dan mulut — dipanggang jadi satu geometri,
+  hanya +2 draw call untuk 26 orang.
+- **Mobil yang lewat** dulu balok polos warna-warni. Sekarang berbentuk mobil
+  beneran: badan, kabin, kaca keliling, empat roda, lampu depan & belakang —
+  tetap 1 draw call.
+- Seberang jalan yang tadinya hamparan kosong kini terisi panti asuhan.
+
+### 📲 Sekarang bisa jadi APK & aplikasi laptop
+Game ini sudah menjadi **PWA penuh**: manifest, ikon (192/512/maskable/Apple),
+dan service worker yang menyimpan berkas game di perangkat.
+
+- **Pasang langsung**: tombol **"📲 Pasang di perangkat ini"** di menu awal.
+  Masuk ke layar utama HP / Start Menu laptop, layar penuh, bisa dibuka offline.
+- **APK otomatis**: `.github/workflows/apk.yml` membangun APK tiap kali kamu push.
+  Unduh di tab **Actions** → **Artifacts**.
+- **APK sendiri**: `npm run apk:debug` (laptopmu sudah punya Android Studio & JDK).
+
+Langkah lengkapnya ada di **`PANDUAN-APK.md`**.
+
 ## Update 11.2 — Dua Laptop Akhirnya Bisa Masuk Bersamaan
 
 ### 🔴 Kenapa dulu hanya satu orang yang bisa masuk

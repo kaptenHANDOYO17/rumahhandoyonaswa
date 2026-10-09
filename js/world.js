@@ -348,7 +348,7 @@ function buildNeighborhood(scene, W) {
   neighborHouse(scene, -58, 1, 0, schemes[5]);
   neighborHouse(scene, 58, 1, 0, schemes[4]);
   neighborHouse(scene, -26, 31, PI, schemes[2]);
-  neighborHouse(scene, 0, 31, PI, schemes[3]);
+  // (x=0, z=31) sekarang ditempati Panti Asuhan Harapan Bunda — lihat js/panti.js
   neighborHouse(scene, 26, 31, PI, schemes[4]);
   neighborHouse(scene, 52, 31, PI, schemes[0]);
   neighborHouse(scene, -52, 31, PI, schemes[1]);

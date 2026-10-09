@@ -21,6 +21,9 @@ import { openRush } from './minigame.js';
 import { openEggs, konamiWatcher } from './easter.js';
 import { openPhoto } from './polish.js';
 import { openCrypto } from './crypto.js';
+import { daftarKisah, ringkasKisah, AMBANG } from './kisah.js';
+import { CATATAN } from './bawahtanah.js';
+import { ANAK, PENGASUH } from './panti.js';
 import { openEmergency } from './services.js';
 import { ACCESS_INFO } from './books2.js';
 import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
@@ -554,6 +557,49 @@ export class UI {
   }
   closeModal() { $('.modal', this.root).classList.add('hidden'); this.modalOpen = false; document.body.classList.remove('ada-modal'); }
   modalTerbuka() { const m = $('.modal', this.root); return !!(m && !m.classList.contains('hidden')); }
+  // ---------- kisah warga ----------
+  openKisah() {
+    const hh = this.g.hh; hh._ANAK = { ANAK };
+    const semua = daftarKisah(hh); const W = hh.world; const R = ringkasKisah(hh);
+    const baris = Object.entries(semua).map(([nama, k]) => {
+      const r = (W.kisah || {})[nama] || { poin: 0, bab: 0 };
+      const maks = k[1].length; const tamat = r.bab >= maks;
+      const berikut = AMBANG[Math.min(maks - 1, r.bab)] || 0;
+      const maju = tamat ? 100 : Math.min(100, Math.round((r.poin / Math.max(1, berikut)) * 100));
+      const isi = r.bab ? k[1].slice(0, r.bab).map((t, i) => `<p><b>Bab ${i + 1}.</b> ${esc(t)}</p>`).join('')
+        : '<p class="muted">Belum ada yang terbuka. Ajak dia bicara, bantu, atau belanja di tempatnya.</p>';
+      return `<details class="ks ${tamat ? 'tamat' : ''}"><summary><b>${esc(nama)}</b><em>${esc(k[0])}</em>
+        <span class="ksBar"><i style="width:${maju}%"></i></span><small>${r.bab}/${maks}${tamat ? ' ✓' : ''}</small></summary>
+        <div class="ksIsi">${isi}</div></details>`;
+    }).join('');
+    this.modal(`<h2>📖 Kisah Warga</h2>
+      <p class="muted small">Setiap warga punya cerita hidup yang terbuka pelan-pelan — bukan secara acak, tapi dari apa yang benar-benar kamu lakukan bersama mereka. Sudah <b>${R.mulai}</b> dari ${R.total} kisah dimulai, <b>${R.tamat}</b> tamat.</p>
+      <div class="ksList">${baris}</div>
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
+  }
+  // ---------- panti asuhan ----------
+  openPanti() {
+    const hh = this.g.hh; const W = hh.world;
+    const kartu = (a, anak) => {
+      const r = (W.kisah || {})[a.n] || { bab: 0 };
+      return `<div class="pnK"><div class="pnAv" style="--c:${a.w.shirt}">${anak ? '🧒' : '🧕'}</div>
+        <div><b>${esc(a.n)}</b><small>${anak ? a.u + ' tahun' : 'Pengasuh'}${r.bab ? ` · kisah ${r.bab} bab` : ''}</small>
+        <p>${esc(a.sifat)}</p>${anak ? `<em>Cita-cita: ${esc(a.cita)}</em>` : ''}</div></div>`;
+    };
+    this.modal(`<h2>🏠 Panti Asuhan Harapan Bunda</h2>
+      <p class="muted small">Di seberang jalan, tepat di depan rumah kalian. Berdiri sejak 2006, diasuh Bu Asih selama 20 tahun. Datangi gerbangnya untuk berdonasi, membagikan makanan, mengajar, atau sekadar main bersama.</p>
+      <div class="pnList">${PENGASUH.map((p) => kartu(p, false)).join('')}${ANAK.map((a) => kartu(a, true)).join('')}</div>
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
+  }
+  // ---------- dinding catatan di ruang bawah tanah ----------
+  openCatatan() {
+    this.modal(`<div class="ctt"><h2>Dinding Catatan</h2>
+      <p class="muted small">Tulisan tangan di kertas-kertas kecil yang ditempel rapat. Sebagian tintanya sudah pudar.</p>
+      ${CATATAN.map((t) => `<p class="cttB">${esc(t)}</p>`).join('')}
+      <p class="cttAkhir">Di bawah dinding ini ada satu kertas yang paling baru, tulisannya paling rapi:<br>
+      <b>"Ruangan ini aku buat supaya bisa keluar darinya. Kalau kamu sedang di dalam yang seperti ini — bicaralah ke seseorang. Tidak harus pintar menjelaskan. Cukup bilang: aku sedang tidak baik."</b></p>
+      <div class="mbtns row"><button class="btn ghost" data-close>Naik ke atas</button></div></div>`, 'wide');
+  }
   openMenu() {
     const g = this.g;
     const m = this.modal(`<h2>Menu</h2>
@@ -565,6 +611,8 @@ export class UI {
         <button class="btn" data-a="rush">🍛 Minigame: Nasi Padang Rush</button>
         <button class="btn" data-a="eggs">🥚 Jurnal Rahasia (easter egg)</button>
         <button class="btn" data-a="crypto">🪙 Bursa Kripto (portofolio keluarga)</button>
+        <button class="btn" data-a="kisah">📖 Kisah Warga (cerita hidup tetangga)</button>
+        <button class="btn" data-a="panti">🏠 Panti Harapan Bunda (10 anak asuh)</button>
         <button class="btn" data-a="photo">📸 Mode Foto</button>
         <button class="btn" data-a="opt">⚙️ Kenyamanan Main (energi, kebutuhan, panjang hari)</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
@@ -583,6 +631,8 @@ export class UI {
       if (a.dataset.a === 'rush') { this.closeModal(); openRush(this); }
       if (a.dataset.a === 'eggs') { this.closeModal(); openEggs(this); }
       if (a.dataset.a === 'crypto') { this.closeModal(); openCrypto(this); }
+      if (a.dataset.a === 'kisah') { this.closeModal(); this.openKisah(); }
+      if (a.dataset.a === 'panti') { this.closeModal(); this.openPanti(); }
       if (a.dataset.a === 'photo') { this.closeModal(); openPhoto(this); }
       if (a.dataset.a === 'opt') { this.closeModal(); this.openOptions(); }
       if (a.dataset.a === 'savenow') { this.g.save(true); this.toast('Menyimpan… 💾', 'info'); }

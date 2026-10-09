@@ -2,7 +2,7 @@
 //  LOGIKA RUMAH TANGGA — state, aksi, kebutuhan, sistem rumah
 //  Host menjalankan semua ini; tamu hanya menerima snapshot.
 // ============================================================
-import {
+import { GRID,
   TYPES, INITIAL_OBJECTS, NEEDS, SKILLS, SKILL_XP, CAREERS, WORK_START, OUTFIT_DEFAULTS, MOODLETS,
   MOOD_LEVELS, REL_LEVELS, FAMILY_LEVELS, GOAL_POOL, DAY_NAMES, START_MONEY, START_TIME, WALLS, FENCES,
   TREES, LOT, HOUSE, DOORS, SIM_NAMES, PI, fmtRp, clamp,
@@ -31,6 +31,10 @@ import { installServices } from './services.js';
 import { installRomance } from './romance.js';
 import './studio.js';
 import { TOWN_OBJECTS, TOWN_WALLS, VENDOR_SPOTS } from './town.js';
+import { PANTI, PANTI_OBJECTS, ANAK } from './panti.js';
+import { BAWAH, BAWAH_OBJECTS } from './bawahtanah.js';
+import { installKisah } from './kisah.js';
+import { satwaJam } from './satwa.js';
 const STUDIO_OBJECTS = [['bigEasel', 4.3, -3.7, 0], ['paintTable', 3.75, -5.55, 0], ['canvasRack', 7.6, -4.6, 3], ['studioLamp', 3.5, -2.2, 0]];
 export const HUMANS = ['Handoyo', 'Naswa'];
 { const S = INTER.sleep; if (S && !S._opt) { S._opt = true; const bd = S.build; S.build = (c) => { const r = bd(c); const st = r.steps && r.steps[0];
@@ -175,6 +179,8 @@ export class Household {
     for (const [type, x, z, rot] of LIB_OBJECTS) objects.push({ id: id++, type, x, z, rot, lvl: 1, s: this.defaultState(type) });
     for (const [type, x, z, rot] of TOWN_OBJECTS) objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
     for (const [type, x, z, rot] of STUDIO_OBJECTS) objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
+    for (const [type, x, z, rot] of PANTI_OBJECTS) objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
+    for (const [type, x, z, rot] of BAWAH_OBJECTS) objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
     this.world = {
       time: START_TIME, speed: 1, money: WALLET_START * 2, petBond: 30, rel: 32, weather: 'cerah', rainLeft: 0, vendor: false, fam: 0,
       house: { stock: 6, dishes: 1, trash: 2, servings: 0, servingsBy: null, laundry: 2, grass: 30, bills: 0, billDue: null, mail: true, power: true, orderAt: null },
@@ -260,6 +266,18 @@ export class Household {
       const f = footprint(o.type, o.x, o.z, o.rot);
       n.rect(n.stat, f.minX + 0.04, f.minZ + 0.04, f.maxX - 0.04, f.maxZ - 0.04);
     }
+    // ---- wilayah baru: sawah belakang, Panti Asuhan, dan ruang bawah tanah ----
+    const buka = (x0, z0, x1, z1) => { for (let j = 0; j < n.h; j++) for (let i = 0; i < n.w; i++) { const c = n.center(i, j); if (c.x > x0 && c.x < x1 && c.z > z0 && c.z < z1) n.stat[n.idx(i, j)] = 0; } };
+    n.rect(n.stat, GRID.minX, GRID.minZ, GRID.maxX, -14.2);            // sawah hanya pemandangan
+    n.rect(n.stat, GRID.minX, 16.8, GRID.maxX, 19.2);                  // trotoar seberang: lewat zebra cross saja
+    buka(-2.6, 16.6, 2.6, 19.4);
+    // Panti Asuhan: halaman terbuka, bangunan & pagar tertutup, gerbang terbuka
+    n.rect(n.stat, PANTI.minX - 0.4, PANTI.z - 6.4, PANTI.maxX + 0.4, PANTI.z - 6.0);   // pagar depan
+    buka(PANTI.x - 1.2, PANTI.z - 6.6, PANTI.x + 1.2, PANTI.z - 5.8);                    // gerbang
+    n.rect(n.stat, PANTI.x - 5.6, PANTI.z + 0.3, PANTI.x + 5.6, PANTI.z + 7.0);          // blok tengah
+    for (const sx of [-7.4, 7.4]) n.rect(n.stat, PANTI.x + sx - 2.7, PANTI.z + 0.1, PANTI.x + sx + 2.7, PANTI.z + 5.2);
+    // Ruang bawah tanah: hanya bisa dijalani saat sedang berada di bawah
+    if (this.world.diBawah) buka(BAWAH.minX + 0.35, BAWAH.minZ + 0.35, BAWAH.maxX - 0.35, BAWAH.maxZ - 0.35);
   }
   canPlace(type, x, z, rot, excludeId, lvl = 0) {
     const T = TYPES[type]; const f = footprint(type, x, z, rot);
@@ -829,6 +847,7 @@ export class Household {
     if (min % 60 === 0) {
       // cuaca
       if (this.cryptoHour) this.cryptoHour(hr);
+      try { satwaJam(this, hr); } catch (e) { /* abaikan */ }
       if (this.seasonHour) this.seasonHour(hr);
       else if (W.weather === 'hujan') { W.rainLeft--; if (W.rainLeft <= 0) { W.weather = 'cerah'; this.toast('Hujan reda 🌤️', 'info'); } }
       else if (Math.random() < (hr >= 13 && hr <= 18 ? 0.09 : 0.03)) { W.weather = 'hujan'; W.rainLeft = 1 + Math.floor(Math.random() * 3); this.toast('Hujan turun... jemuran aman? 🌧️', 'info'); }
@@ -909,7 +928,11 @@ export class Household {
       if (V.stage === 2 && !sim.queue.length) sim.visit = null;
     }
   }
-  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); installCrypto(this); }
+  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); installCrypto(this); installKisah(this);
+    // jembatan ke lapisan tampilan (ruang bawah tanah & panti asuhan)
+    for (const k of ['masukBawah', 'keluarBawah', 'bukaCatatan', 'teleponHangat', 'pantiDonasi', 'pantiKenyang', 'pantiAyun']) {
+      if (!this[k]) this[k] = (...a) => this.hooks[k] && this.hooks[k](...a);
+    } }
   births() {
     for (const f of this.pets()) {
       if (!f.pregUntil || this.world.time < f.pregUntil) continue;
@@ -1101,7 +1124,7 @@ export class Household {
     this.rapikanDunia();
     const snap = JSON.parse(JSON.stringify(this.snapshot()));
     for (const n in snap.sims) snap.sims[n].queue = [];
-    delete snap.others; snap.v = 5;
+    delete snap.others; snap.v = 6;
     snap.gallery = (this.gallery || []).slice(0, 24).map((p) => ({ ...p, img: null }));
     return snap;
   }
@@ -1125,6 +1148,13 @@ export class Household {
       let id = this.world.nextId; for (const [type, x, z, rot] of PET_OBJECTS) if (!this.world.objects.some((o) => o.type === type)) this.world.objects.push({ id: id++, type, x, z, rot, s: this.defaultState(type) });
       this.world.nextId = id; this.world.objVer++; this.world.petBond = 30;
       for (const n of HUMANS) if (s.sims[n]) s.sims[n].wallet = WALLET_START;
+    }
+    if (!s.v || s.v < 6) {                     // Update 12: panti asuhan, satwa, ruang bawah tanah
+      let id6 = this.world.nextId;
+      for (const [type, x, z, rot] of [...PANTI_OBJECTS, ...BAWAH_OBJECTS]) {
+        if (!this.world.objects.some((o) => o.type === type)) this.world.objects.push({ id: id6++, type, x, z, rot, lvl: 0, s: this.defaultState(type) });
+      }
+      this.world.nextId = id6; this.world.objVer++;
     }
     if (s.v < 4) {
       let id2 = this.world.nextId;

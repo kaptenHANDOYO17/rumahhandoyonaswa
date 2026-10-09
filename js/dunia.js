@@ -69,14 +69,72 @@ export function buildDunia(scene) {
     D.wargaMesh.setColorAt(i, col.setHSL(Math.random(), 0.45, 0.45 + Math.random() * 0.25));
   }
   D.wargaMesh.castShadow = false; D.wargaMesh.frustumCulled = true; scene.add(D.wargaMesh);
+  // --- kepala + wajah untuk warga jauh ---
+  //  Dulu mereka cuma kapsul tanpa kepala sama sekali. Sekarang tiap warga punya
+  //  kepala, rambut, dan dua mata yang dipanggang jadi SATU geometri, jadi
+  //  tambahannya hanya 2 draw call untuk 26 orang.
+  const gabung = (daftar) => {
+    const pos = [], nor = [], warna = [];
+    for (const [geo, c, dx, dy, dz] of daftar) {
+      geo.translate(dx, dy, dz);
+      const p = geo.attributes.position, nn = geo.attributes.normal;
+      const idx = geo.index ? geo.index.array : null;
+      const n = idx ? idx.length : p.count;
+      const w = new THREE.Color(c);
+      for (let k = 0; k < n; k++) {
+        const v = idx ? idx[k] : k;
+        pos.push(p.getX(v), p.getY(v), p.getZ(v));
+        nor.push(nn.getX(v), nn.getY(v), nn.getZ(v));
+        warna.push(w.r, w.g, w.b);
+      }
+      geo.dispose();
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(warna, 3));
+    return g;
+  };
+  const kulit = ['#c99670', '#a8714a', '#8a5a38', '#d2a07c'];
+  D.kepalaMesh = [];
+  for (let v = 0; v < 2; v++) {                       // dua varian: berambut & berkerudung
+    const kl = kulit[v * 2];
+    const bagian = [
+      [new THREE.SphereGeometry(0.115, 8, 6), kl, 0, 1.33, 0],
+      [v ? new THREE.SphereGeometry(0.14, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.66) : new THREE.SphereGeometry(0.122, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), v ? '#4a4a6a' : '#1e1a18', 0, v ? 1.325 : 1.345, v ? 0 : -0.008],
+      [new THREE.SphereGeometry(0.019, 5, 4), '#15151a', -0.042, 1.345, 0.098],
+      [new THREE.SphereGeometry(0.019, 5, 4), '#15151a', 0.042, 1.345, 0.098],
+      [new THREE.BoxGeometry(0.04, 0.009, 0.01), '#7a4a46', 0, 1.285, 0.106],
+    ];
+    const g = gabung(bagian);
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
+    m.userData.noSeason = true;
+    const im = new THREE.InstancedMesh(g, m, 13);
+    im.castShadow = false; im.frustumCulled = true; scene.add(im); D.kepalaMesh.push(im);
+  }
   // --- kendaraan lewat (instanced) ---
-  const mobilGeo = new THREE.BoxGeometry(1.8, 1.1, 4);
-  const matMobil = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3 }); matMobil.userData.noSeason = true;
+  // Mobil yang lewat dulu cuma balok polos — dari kejauhan terlihat seperti
+  // kotak warna-warni. Sekarang berbentuk mobil beneran (badan, kabin, kaca,
+  // empat roda, lampu depan) yang dipanggang jadi SATU geometri: tetap 1 draw call.
+  const roda = () => { const g = new THREE.CylinderGeometry(0.34, 0.34, 0.24, 10); g.rotateZ(Math.PI / 2); return g; };
+  const mobilGeo = gabung([
+    [new THREE.BoxGeometry(1.86, 0.6, 4.1), '#ffffff', 0, 0.62, 0],            // badan (ikut warna tiap mobil)
+    [new THREE.BoxGeometry(1.64, 0.56, 2.0), '#ffffff', 0, 1.16, -0.22],       // kabin
+    [new THREE.BoxGeometry(1.67, 0.34, 1.82), '#2a2f36', 0, 1.2, -0.22],       // kaca keliling
+    [new THREE.BoxGeometry(1.5, 0.1, 0.9), '#e8e8e8', 0, 1.46, -0.22],         // atap
+    [roda(), '#17191c', -0.93, 0.34, 1.28], [roda(), '#17191c', 0.93, 0.34, 1.28],
+    [roda(), '#17191c', -0.93, 0.34, -1.3], [roda(), '#17191c', 0.93, 0.34, -1.3],
+    [new THREE.BoxGeometry(0.34, 0.16, 0.08), '#fff3c4', -0.62, 0.72, 2.06],   // lampu depan
+    [new THREE.BoxGeometry(0.34, 0.16, 0.08), '#fff3c4', 0.62, 0.72, 2.06],
+    [new THREE.BoxGeometry(0.3, 0.14, 0.08), '#b3261e', -0.64, 0.74, -2.06],   // lampu belakang
+    [new THREE.BoxGeometry(0.3, 0.14, 0.08), '#b3261e', 0.64, 0.74, -2.06],
+  ]);
+  const matMobil = new THREE.MeshStandardMaterial({ roughness: 0.4, metalness: 0.3, vertexColors: true }); matMobil.userData.noSeason = true;
   D.mobilMesh = new THREE.InstancedMesh(mobilGeo, matMobil, 8);
   for (let i = 0; i < 8; i++) {
     const arah = i % 2 ? 1 : -1;
     D.mobil.push({ x: -90 + Math.random() * 180, z: arah > 0 ? 21.2 : 24.2, dir: arah, sp: 4 + Math.random() * 5 });
-    D.mobilMesh.setColorAt(i, col.setHSL(Math.random(), 0.6, 0.5));
+    D.mobilMesh.setColorAt(i, col.setHSL(Math.random(), 0.55, 0.52));
   }
   scene.add(D.mobilMesh);
   // --- asap dapur rumah tetangga ---
@@ -121,13 +179,15 @@ export function updateDunia(D, game, dt, t, night) {
     e.set(0, yaw, Math.sin(t * 7 + w.ph) * 0.07); q.setFromEuler(e);
     v.set(1, 1 + Math.abs(Math.sin(t * 7 + w.ph)) * 0.04, 1);
     m.compose(new THREE.Vector3(x, 0, z), q, v); D.wargaMesh.setMatrixAt(i, m);
+    if (D.kepalaMesh) { const km = D.kepalaMesh[i % 2], ki = (i / 2) | 0; if (km && ki < 13) km.setMatrixAt(ki, m); }
   });
   D.wargaMesh.instanceMatrix.needsUpdate = true;
+  if (D.kepalaMesh) for (const km of D.kepalaMesh) km.instanceMatrix.needsUpdate = true;
   D.mobil.forEach((c, i) => {
     c.x += c.dir * c.sp * dt * (night ? 0.6 : 1);
     if (c.x > 95) c.x = -95; if (c.x < -95) c.x = 95;
     e.set(0, c.dir > 0 ? PI / 2 : -PI / 2, 0); q.setFromEuler(e);
-    m.compose(new THREE.Vector3(c.x, 0.55, c.z), q, new THREE.Vector3(1, 1, 1)); D.mobilMesh.setMatrixAt(i, m);
+    m.compose(new THREE.Vector3(c.x, 0, c.z), q, new THREE.Vector3(1, 1, 1)); D.mobilMesh.setMatrixAt(i, m);
   });
   D.mobilMesh.instanceMatrix.needsUpdate = true;
   // asap dapur (pagi & sore saja)
@@ -248,6 +308,7 @@ export function setDetailDunia(D, scene, level) {
   for (const it of D.jauhCache) { const tampil = it.d <= batas; if (it.o.visible !== tampil) it.o.visible = tampil; if (!tampil) sembunyi++; }
   // warga & kendaraan di kejauhan ikut dikurangi
   if (D.wargaMesh) D.wargaMesh.count = level === 0 ? D.warga.length : level === 1 ? 12 : 0;
+  if (D.kepalaMesh) for (const km of D.kepalaMesh) km.count = level === 0 ? 13 : level === 1 ? 6 : 0;
   if (D.mobilMesh) D.mobilMesh.count = level === 0 ? D.mobil.length : level === 1 ? 4 : 0;
   if (D.asapMesh) D.asapMesh.count = level === 0 ? D.asap.length : level === 1 ? 8 : 0;
   if (D.lampuMesh) D.lampuMesh.visible = level < 2;

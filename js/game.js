@@ -18,6 +18,9 @@ import { buildPadang, buildPadangObject, updatePadang, isPadangType } from './pa
 import { buildPolish, updatePolish, spawnBurst, shake } from './polish.js';
 import { buildSawah, updateSawah, buildSawahObject, isSawahType } from './sawah.js';
 import { buildDunia, updateDunia, gabungStatis, setDetailDunia, gabungGrup, matikanBayanganJauh } from './dunia.js';
+import { buildPanti, updatePanti, PANTI, ANAK } from './panti.js';
+import { buildSatwa, updateSatwa } from './satwa.js';
+import { buildBawah, updateBawah, BAWAH, CATATAN } from './bawahtanah.js';
 import { aiAsk, aiReady, AI } from './ai.js';
 import { updatePOV, masukPOV, keluarPOV, aksiKamera } from './kamera.js';
 import { NPCS } from './people.js';
@@ -63,6 +66,13 @@ export class Game {
       privasi: (bed) => { spawnBurst(this.polishFX, this, 'mawar', bed ? { x: bed.x, z: bed.z } : null); this.romanceGlow = 40; },
       ghost: () => { this.ghostT = 6; shake(this.polishFX, 0.25); },
       loanOffer: (o) => { this.ui.loanModal(o); this.send({ t: 'loan', o }); },
+      masukBawah: (sim) => this.masukBawah(sim),
+      keluarBawah: (sim) => this.keluarBawah(sim),
+      bukaCatatan: () => this.ui.openCatatan(),
+      teleponHangat: () => { spawnBurst(this.polishFX, this, 'konfeti'); },
+      pantiDonasi: () => { spawnBurst(this.polishFX, this, 'konfeti'); },
+      pantiKenyang: () => { spawnBurst(this.polishFX, this, 'konfeti'); },
+      pantiAyun: () => { /* ayunan sudah bergerak sendiri */ },
       loanClose: () => { this.ui.closeLoan(); this.send({ t: 'loanClose' }); },
     });
     if (save) this.hh.loadSave(save);
@@ -97,7 +107,7 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
-    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene);
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene); this.pantiFX = buildPanti(this.scene); this.bawahFX = buildBawah(this.scene);
     // tandai semua yang harus tetap bisa bergerak / disembunyikan sendiri-sendiri
     const tandai = (v, dalam = 0) => {                       // tandai hanya bagian yang benar-benar bergerak
       if (!v || dalam > 3) return;
@@ -106,10 +116,13 @@ export class Game {
       if (typeof v === 'object') for (const k of Object.keys(v)) { if (k === 'root') continue; tandai(v[k], dalam + 1); }
     };
     for (const d of [this.W.roof, this.W.floor2, this.W.plafon, this.W.stairs, ...(this.W.walls || []).map((w) => w.g), this.W.rain, this.W.clouds]) if (d && d.traverse) d.traverse((o) => { o.userData.dinamis = true; });
-    for (const fx of [this.townFX, this.padangFX, this.sawahFX, this.seasonFX, this.svcFX, this.polishFX]) tandai(fx);
+    for (const fx of [this.townFX, this.padangFX, this.sawahFX, this.seasonFX, this.svcFX, this.polishFX, this.pantiFX, this.bawahFX]) tandai(fx);
+    // Ruang bawah tanah harus tetap utuh sebagai satu grup yang bisa
+    // disembunyikan/ditampilkan — jangan ikut digabung ke mesh statis.
+    this.bawahFX.root.traverse((o) => { o.userData.dinamis = true; });
     for (const L of this.W.interiorLights || []) if (L.lamp) L.lamp.userData.dinamis = true;
     this.statisDigabung = gabungStatis(this.scene);        // satukan hiasan statis → draw call turun drastis
-    this.duniaFX = buildDunia(this.scene);
+    this.duniaFX = buildDunia(this.scene); this.satwaFX = buildSatwa(this.scene);
     this.bayanganDimatikan = matikanBayanganJauh(this.scene);   // bayangan hanya dihitung di sekitar rumah this.svcFX = buildServiceFX(this); this.texCache = new Map(); this.typeOf = (t) => TYPES[t];
     this.objMeshes = new Map(); this.dirtMeshes = new Map();
     this.models = {};
@@ -268,7 +281,8 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
-      updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); updateDunia(this.duniaFX, this, dt, t, night); this.updateArt(night);
+      if (!W.diBawah) { updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); updateDunia(this.duniaFX, this, dt, t, night); updatePanti(this.pantiFX, this, dt, t, night); updateSatwa(this.satwaFX, this, dt, t, night); }
+      updateBawah(this.bawahFX, this, dt, t); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
     }
@@ -302,6 +316,50 @@ export class Game {
     try { this.ui.frame(dt); } catch (e) { this.laporGalat('tampilan', e); }
     if (this.ui.sound && this.ui.sound.update) this.ui.sound.update(this, dt);
   }
+  // ---------- ruang bawah tanah: masuk & keluar ----------
+  //  Ruangannya kotak beton tertutup di luar komplek. Supaya terasa benar-benar
+  //  di bawah tanah, dunia luar ditenggelamkan kabut gelap selama berada di dalam.
+  masukBawah(sim) {
+    const W = this.hh.world;
+    W.diBawah = true; this.hh.rebuildNav();
+    this.bawahFX.root.visible = true;
+    sim.x = BAWAH.x; sim.z = BAWAH.maxZ - 1.4; sim.yaw = Math.PI; sim.queue = []; if (sim.cur && this.hh.endAction) this.hh.endAction(sim, sim.cur, true);
+    this.focusSim(sim.name); this.follow = true;
+    this._langitLama = { near: this.scene.fog.near, far: this.scene.fog.far };
+    W.diBawahSiapa = [sim.name];
+    this.sembunyikanLuar(true);
+    this.ui.toast('Pintu bajanya berat. Di bawah, udaranya lebih dingin dan lampunya berkedip.', 'info', true);
+    this.ui.sfx('door'); this.ui.refresh();
+  }
+  keluarBawah(sim) {
+    const W = this.hh.world;
+    W.diBawah = false; W.diBawahSiapa = [];
+    this.sembunyikanLuar(false);
+    this.bawahFX.root.visible = false;
+    sim.x = 6.4; sim.z = -3.0; sim.yaw = 0; sim.queue = []; if (sim.cur && this.hh.endAction) this.hh.endAction(sim, sim.cur, true);
+    this.hh.rebuildNav();
+    sim.mood('naikKeAtas');
+    this.focusSim(sim.name);
+    this.ui.toast('🪜 Naik ke atas. Rumah terasa jauh lebih hangat dari sebelum turun tadi.', 'good', true);
+    this.ui.refresh();
+  }
+  // Saat di ruang bawah tanah, seluruh dunia luar dimatikan — kalau tidak,
+  // tanaman sawah dan tetangga ikut menembus lantai ruangan.
+  sembunyikanLuar(on) {
+    if (on) {
+      const W = this.hh.world;
+      const boleh = new Set([this.bawahFX.root, this.plumbob]);
+      for (const n of W.diBawahSiapa || []) if (this.models[n]) boleh.add(this.models[n].root);
+      this._luarLama = [];
+      for (const c of this.scene.children) {
+        if (boleh.has(c) || c.isLight) continue;
+        if (c.visible) { this._luarLama.push(c); c.visible = false; }
+      }
+    } else {
+      for (const c of this._luarLama || []) c.visible = true;
+      this._luarLama = null;
+    }
+  }
   pausedByUI() { return false; }
   isNight() { const h = (this.hh.world.time % 1440) / 60; return h < 6.2 || h > 17.9; }
 
@@ -319,7 +377,7 @@ export class Game {
       c.target.add(d); this.camera.position.add(d);
     }
     // batasi area
-    const tg = c.target; const cx = Math.max(-30, Math.min(30, tg.x)), cz = Math.max(-20, Math.min(26, tg.z));
+    const tg = c.target; const cx = Math.max(-30, Math.min(30, tg.x)), cz = Math.max(-26, Math.min(34, tg.z));
     if (cx !== tg.x || cz !== tg.z) { this.camera.position.x += cx - tg.x; this.camera.position.z += cz - tg.z; tg.x = cx; tg.z = cz; }
     tg.y = (this.viewLvl || 0) * LVL_H;
     c.update();
@@ -349,7 +407,8 @@ export class Game {
       let dy = s.yaw - R.rotation.y; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); R.rotation.y += dy * Math.min(1, dt * (s.moving ? 14 : 8));
       m.seatH = s.seatH;
       m.setProp(s.species === 'capy' && s.hat > hh.world.time ? 'orange' : s.prop);
-      R.visible = !s.hidden && (s.lvl || 0) <= this.viewLvl && !(this.pov && n === this.active);
+      R.visible = !s.hidden && (s.lvl || 0) <= this.viewLvl && !(this.pov && n === this.active)
+        && (!hh.world.diBawah || (hh.world.diBawahSiapa || []).includes(n));
       m.ring.visible = n === this.active && !s.hidden;
       const walking = s.anim === 'walk' || s.anim === 'jog' || s.anim === 'push' || s.anim === 'carry';
       const animDt = walking ? dt * (s.moving ? Math.min(Math.max(mul, 1), 6) : 0.0001) : dt * Math.min(Math.max(mul, 1), 2.5);
@@ -374,12 +433,21 @@ export class Game {
     if (rain) sky.lerp(SKY.rain, (w.weather === 'salju' ? 0.25 : 0.55) * dayF + 0.2);
     this.scene.background.copy(sky); this.scene.fog.color.copy(sky);
     this.scene.fog.near = rain ? 25 : 60; this.scene.fog.far = rain ? 110 : 190;
+    // di ruang bawah tanah: dunia luar ditelan kabut gelap, langit dimatikan
+    if (w.diBawah) {
+      // Dunia luar sudah disembunyikan sepenuhnya, jadi kabut hanya perlu
+      // menggelapkan cakrawala — bukan menelan ruangannya sendiri.
+      this.scene.fog.near = 26; this.scene.fog.far = 58;
+      this.scene.background.setRGB(0.012, 0.013, 0.016); this.scene.fog.color.setRGB(0.012, 0.013, 0.016);
+      W.hemi.color.set('#eaf2ff'); W.hemi.groundColor && W.hemi.groundColor.set('#cfd8e4');
+      if (this.bawahFX) this.bawahFX.plafon.visible = !!this.pov;
+    }
     const az = ((h - 6) / 12) * PI;
     W.sun.position.set(Math.cos(az) * 40, Math.max(6, el * 45), -18 + Math.sin(az) * 6);
     W.sun.target.position.set(0, 0, 0);
-    W.sun.intensity = Math.max(0, el) * (rain ? 0.7 : 2.6) + 0.02;
+    W.sun.intensity = w.diBawah ? 0 : Math.max(0, el) * (rain ? 0.7 : 2.6) + 0.02;
     W.sun.color.set(duskF > 0.4 ? '#ffc38a' : '#fff3dc');
-    W.hemi.intensity = 0.28 + dayF * (rain ? 0.55 : 0.7);
+    W.hemi.intensity = w.diBawah ? 0.95 : 0.28 + dayF * (rain ? 0.55 : 0.7);
     W.hemi.color.set(dayF > 0.3 ? '#dff2ff' : '#6d7fb0');
     const night = this.isNight() || (rain && dayF < 0.6);
     const pw = w.house.power;

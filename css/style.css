@@ -490,3 +490,37 @@ body.ada-modal .kam, body.ada-modal .bidik { display: none !important; }
   box-shadow: 0 12px 36px rgba(0,0,0,.5); display: flex; gap: 10px; align-items: flex-start; }
 .galat button { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 9px; padding: 4px 9px; font-size: 11px; flex: none; }
 .galat code { font-size: 11px; opacity: .85; word-break: break-word; }
+
+/* ---------- kisah warga ---------- */
+.ksList { display: flex; flex-direction: column; gap: 6px; max-height: 58vh; overflow-y: auto; margin: 10px 0; padding-right: 4px; }
+.ks { background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+.ks.tamat { border-color: rgba(70,211,107,.5); background: rgba(70,211,107,.09); }
+.ks summary { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; padding: 10px 13px; cursor: pointer; list-style: none; }
+.ks summary::-webkit-details-marker { display: none; }
+.ks summary b { font-family: var(--head); font-size: 15px; }
+.ks summary em { grid-column: 1; font-style: normal; font-size: 11.5px; color: var(--muted); }
+.ks summary small { font-size: 11px; font-weight: 800; color: var(--green); }
+.ksBar { grid-row: 1 / 3; grid-column: 2; width: 70px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; align-self: center; }
+.ksBar i { display: block; height: 100%; background: linear-gradient(90deg, var(--green), #ffd166); }
+.ksIsi { padding: 2px 14px 12px; border-top: 1px solid var(--line); }
+.ksIsi p { font-size: 13px; line-height: 1.6; margin: 9px 0; }
+.ksIsi b { color: var(--green); }
+
+/* ---------- panti asuhan ---------- */
+.pnList { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; max-height: 58vh; overflow-y: auto; margin: 10px 0; }
+.pnK { display: flex; gap: 10px; padding: 10px 12px; border-radius: 13px; background: rgba(255,255,255,.05); border: 1px solid var(--line); }
+.pnAv { width: 42px; height: 42px; flex: none; border-radius: 13px; display: grid; place-items: center; font-size: 21px;
+  background: color-mix(in srgb, var(--c) 35%, transparent); border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
+.pnK b { font-family: var(--head); font-size: 14.5px; display: block; }
+.pnK small { font-size: 11px; color: var(--green); font-weight: 800; }
+.pnK p { font-size: 12px; line-height: 1.5; margin: 4px 0 2px; opacity: .9; }
+.pnK em { font-size: 11.5px; font-style: normal; color: #ffd166; }
+
+/* ---------- dinding catatan (ruang bawah tanah) ---------- */
+.modal.wide .ctt { max-width: 640px; }
+.ctt h2 { font-size: 23px; }
+.cttB { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-size: 14px; line-height: 1.75;
+  margin: 10px 0; padding: 9px 13px; border-left: 2px solid rgba(255,255,255,.18); color: #d6d8dd; background: rgba(255,255,255,.03); border-radius: 0 10px 10px 0; }
+.cttAkhir { margin-top: 16px; padding: 13px 15px; border-radius: 13px; font-size: 13px; line-height: 1.7;
+  background: linear-gradient(135deg, rgba(255,183,94,.16), rgba(70,211,107,.12)); border: 1px solid rgba(255,183,94,.4); }
+.cttAkhir b { color: #ffd9a0; }
