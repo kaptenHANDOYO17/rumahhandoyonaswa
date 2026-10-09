@@ -34,7 +34,7 @@ Object.assign(MOODLETS, {
 // ---------------- benda ----------------
 export const BAWAH_OBJECTS = [
   ['lubangTangga', 6.4, -4.2, 0], ['tanggaNaik', 0, -16.2, 0], ['kursiPutih', 0, -20.6, 0],
-  ['pipaTetes', -4.4, -22.4, 0], ['dindingCatatan', 4.6, -22.0, 0], ['kanvasGelap', -4.6, -18.2, 0], ['teleponTua', 4.8, -17.4, 0],
+  ['pipaTetes', -4.4, -22.4, 0], ['dindingCatatan', 4.6, -22.0, 0], ['kanvasGelap', -3.4, -23.9, 0], ['teleponTua', 4.8, -17.4, 0],
 ];
 Object.assign(TYPES, {
   lubangTangga: { name: 'Pintu Baja ke Bawah Tanah', cat: 'luar', price: 0, w: 1.1, d: 1.1, fixed: true,

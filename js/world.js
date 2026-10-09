@@ -153,7 +153,8 @@ export function buildWorld(scene, quality) {
   for (const r of ROOMS) {
     const t = TEX[r.floor].clone(); t.repeat.set((r.maxX - r.minX) / 2, (r.maxZ - r.minZ) / 2); t.needsUpdate = true;
     const f = flat(r.maxX - r.minX, r.maxZ - r.minZ, new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 }), (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2, 0.02);
-    f.userData.room = r.name;
+    f.userData.room = r.name; f.userData.ukuran = [r.maxX - r.minX, r.maxZ - r.minZ];
+    (W.lantaiRumah = W.lantaiRumah || []).push(f);          // dipakai upgrade elegansi (granit/marmer)
     const pl = new THREE.PointLight('#ffd9a0', 0, 9, 1.6); pl.position.set(r.light[0], 2.5, r.light[1]); scene.add(pl);
     const lamp = cyl(0.22, 0.26, 0.06, M('#fff6de', 0.4, 0, { emissive: '#ffdca0', emissiveIntensity: 0 }), r.light[0], 2.77, r.light[1], scene);
     lamp.castShadow = false;
@@ -568,6 +569,40 @@ export function buildObject(obj) {
     case 'mailbox': cyl(0.04, 0.04, 1.0, M('#333'), 0, 0.5, 0, g, 6); box(0.3, 0.26, 0.4, M('#c23b2f', 0.5, 0.2), 0, 1.1, 0, g);
       P.flag = box(0.02, 0.2, 0.08, M('#f2c230'), 0.17, 1.2, -0.1, g); break;
     case 'outdoorBin': box(0.55, 0.8, 0.55, M('#2e7d4f', 0.6), 0, 0.4, 0, g); P.lid = box(0.6, 0.05, 0.6, M('#246640', 0.6), 0, 0.82, 0, g); break;
+    // ---- pintu baja ke ruang bawah tanah (di pojok ruang kerja) ----
+    case 'lubangTangga': {
+      const bingkai = M('#6e6a63', 0.9), pelat = M('#7b8288', 0.35, 0.85), kuningan = M('#c9a227', 0.25, 0.9);
+      // bingkai beton rata lantai, dengan rongga gelap menganga di tengahnya
+      for (const [w, d, x, z] of [[1.22, 0.16, 0, -0.53], [1.22, 0.16, 0, 0.53], [0.16, 0.9, -0.53, 0], [0.16, 0.9, 0.53, 0]]) box(w, 0.11, d, bingkai, x, 0.055, z, g);
+      const rongga = box(0.9, 0.5, 0.9, M('#07080a', 1), 0, -0.24, 0, g); rongga.castShadow = false;   // lubang menuju bawah
+      for (let i = 0; i < 3; i++) box(0.86, 0.045, 0.2, M('#4a4e52', 0.9), 0, -0.06 - i * 0.16, 0.26 - i * 0.2, g).castShadow = false;  // anak tangga terlihat
+      // cahaya hangat samar dari bawah — ini yang membuat pintunya mudah ditemukan
+      const pijar = new THREE.PointLight('#ffb75e', 1.1, 3.4, 2); pijar.position.set(0, -0.1, 0); g.add(pijar);
+      const daun = new THREE.Group(); daun.position.set(-0.5, 0.1, 0); g.add(daun);
+      daun.rotation.z = -1.15;                                                         // daun pintu terbuka lebar
+      box(0.92, 0.05, 0.9, pelat, 0.46, 0, 0, daun);
+      for (let i = -1; i <= 1; i++) box(0.07, 0.015, 0.78, M('#9aa1a7', 0.3, 0.8), 0.46 + i * 0.26, 0.032, 0, daun);  // alur anti-selip
+      const cincin = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.022, 7, 16), kuningan);
+      cincin.position.set(0.8, 0.04, 0); cincin.rotation.x = Math.PI / 2; daun.add(cincin);
+      for (const sz of [-0.34, 0.34]) box(0.1, 0.07, 0.1, kuningan, -0.54, 0.06, sz, g);                               // engsel
+      box(1.34, 0.014, 0.07, kuningan, 0, 0.1, 0.66, g);                              // garis kuningan penanda di lantai
+      box(1.34, 0.014, 0.07, kuningan, 0, 0.1, -0.66, g);
+      break; }
+    // ---- ular sawah yang menyelinap ke halaman ----
+    case 'ular': {
+      const kulit = M('#5d7a3a', 0.8), perut = M('#c7bf7a', 0.85);
+      let x = 0, z = 0;
+      for (let i = 0; i < 12; i++) {
+        const r = 0.085 - i * 0.004;
+        x = Math.sin(i * 0.72) * 0.34; z = -0.46 + i * 0.085;
+        const seg = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), i === 11 ? kulit : (i % 3 === 0 ? perut : kulit));
+        seg.position.set(x, r, z); seg.castShadow = true; g.add(seg);
+      }
+      const kepala = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), kulit);
+      kepala.scale.set(1, 0.75, 1.45); kepala.position.set(x, 0.09, z + 0.12); kepala.castShadow = true; g.add(kepala);
+      for (const sx of [-0.042, 0.042]) { const mt = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), M('#1a1a1a', 0.3)); mt.position.set(x + sx, 0.12, z + 0.2); g.add(mt); }
+      const lidah = box(0.012, 0.008, 0.09, M('#c62828', 0.6), x, 0.085, z + 0.27, g); lidah.castShadow = false;
+      break; }
     case 'gate': { const bar = M('#22252a', 0.4, 0.6); const gg = new THREE.Group(); gg.position.x = -0.9; gg.rotation.y = -1.3; g.add(gg);
       box(1.8, 0.05, 0.04, bar, 0.9, 1.2, 0, gg); box(1.8, 0.05, 0.04, bar, 0.9, 0.2, 0, gg);
       for (let t = 0.05; t < 1.8; t += 0.15) box(0.025, 1.0, 0.025, bar, t, 0.7, 0, gg); break; }

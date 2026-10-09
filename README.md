@@ -38,6 +38,86 @@ vercel --prod
 
 
 
+## Update 13 — Suara Obrolan, Pintu Ruang Bawah Tanah & Kekayaan yang Berguna
+
+### 🗣️ Semua NPC benar-benar bersuara
+Dulu percakapan hanya muncul sebagai teks di atas kepala. Sekarang **setiap kalimat
+yang keluar benar-benar terdengar** — warga, anak panti, tukang, pedagang, polisi,
+sampai Oyen dan Kapi.
+
+Tiap orang punya **suara sendiri yang tetap**: nada dan kecepatan diambil dari
+profil masing-masing (perempuan lebih tinggi, orang tua lebih lambat dan berat,
+anak panti menyesuaikan umur — Melati yang 6 tahun paling tinggi, Yoga yang 11
+tahun paling rendah di antara anak-anak). Jadi kalian bisa mengenali siapa yang
+sedang bicara tanpa melihat.
+
+Mulut ikut bergerak selama suaranya keluar, suara memudar kalau orangnya jauh
+(lebih dari 26 meter tidak terdengar), dan satu orang tidak akan mengulang kalimat
+yang sama dalam 4 detik.
+
+Kalau perangkat punya suara Bahasa Indonesia, itu yang dipakai. Kalau tidak ada,
+game membuat **celoteh sendiri** dari pola huruf hidup kalimatnya (a-i-u-e-o punya
+nada berbeda, dan nada turun di akhir kalimat) — jadi tetap terasa seperti orang
+berbicara, bukan bunyi acak.
+
+Menu ☰ → **🗣️ Suara obrolan** untuk memutar pilihan: *otomatis · suara asli ·
+celoteh · mati*.
+
+### 🚪 Pintu ruang bawah tanah — di sudut kerja Handoyo
+Pintunya ada di **sudut ruang kerja Handoyo (6.4, −4.2)**, tepat di antara meja
+kerja dan rak buku. Dulu pintu itu tidak pernah terlihat karena memang belum
+pernah digambar wujudnya — sekarang sudah ada: **bingkai batu di lantai, lubang
+gelap, anak tangga yang kelihatan turun ke bawah, daun pintu baja yang terbuka
+dengan gelang kuningan, lampu hangat yang menyembul dari bawah, dan lis kuningan
+di lantai sekelilingnya.**
+
+Berdiri di atasnya → **"Turun ke ruang bawah tanah"**. Untuk keluar, pakai tangga
+yang sama dari dalam.
+
+### 💼 Kekayaan & Aset — uang akhirnya benar-benar berguna
+Menu ☰ → **💼 Kekayaan & Aset**. Empat bagian:
+
+**🤵 Staf pribadi** — Pak Slamet (satpam), asisten pribadi Handoyo, manajer seni
+Naswa, sopir, Chef Renata, dan tukang taman. Digaji tiap bulan (3 hari game);
+kalau gaji tidak terbayar mereka **pamit baik-baik**, bukan hilang begitu saja.
+Efeknya nyata: satpam membuat rumah **tidak pernah kemalingan lagi**, asisten
+mempercepat proyek ngoding **+25%** dan menurunkan bug, manajer seni menaikkan
+harga wajar lukisan **+25%**, sopir menjaga mobil selalu bersih, koki menjaga
+stok dapur dan menyiapkan porsi, tukang taman merawat rumput dan menyirami
+semua tanaman.
+
+**📈 Aset & investasi** — deposito, reksadana, sawah, kebun sawit, kontrakan,
+ruko, waralaba, rumah kos, apartemen, dan vila. Uang keluar besar lalu kembali
+berkala. Tiap aset punya **siklus cair** dan **risiko** sendiri: deposito aman
+tapi kecil, waralaba besar tapi bisa di bawah perkiraan. Panelnya menampilkan
+perkiraan per bulan dan **berapa bulan sampai balik modal**, dan aset bisa dijual
+kembali kapan saja.
+
+**🚗 Kendaraan** — lima tingkat, dari sedan keluarga sampai mobil klasik. Yang
+terbaru otomatis terparkir di carport, menaikkan elegansi, dan membuat perjalanan
+kerja tidak melelahkan.
+
+**✨ Elegansi rumah** — lima kategori (lantai, cahaya, taman, fasad, perabot),
+tiga tingkat masing-masing, dan **semuanya benar-benar mengubah wujud rumah**,
+bukan hanya angka:
+
+- **Lantai** — granit halus → marmer Carrara → marmer dengan inlay kuningan.
+  Tiap ruangan dapat ulangan tekstur sesuai ukurannya sendiri, jadi uratnya tidak
+  pernah melar atau kekecilan.
+- **Cahaya** — lampu hangat → lampu dinding → **lampu gantung kristal** dengan
+  mahkota kuningan yang berkelip pelan.
+- **Taman** — jalan setapak batu → kolam koi dengan ikan yang berenang → **air
+  pancur bertingkat** dengan cahaya air di malam hari.
+- **Fasad** — pilar batu di pagar → **teras bertiang (portico) dengan pediment
+  marmer** → lis kuningan mengelilingi atap. Ketiganya menumpuk, jadi tingkat
+  tertinggi terlihat paling berwibawa.
+- **Perabot** — semua kayu berubah jadi jati, lalu jati gelap yang lebih halus
+  (172 bahan perabot dikenali dari warnanya dan diganti sekaligus).
+
+Arahnya **tenang dan elegan**, bukan mencolok: kuningan tua, marmer putih,
+jati gelap, cahaya hangat. Nilai elegansi diringkas jadi gelar di kepala panel,
+dan rumah yang elegan membuat Handoyo & Naswa lebih sering bahagia tiap pagi.
+
 ## Update 12 — Panti Asuhan, Satwa, Kisah Warga, Ruang Bawah Tanah & APK
 
 ### 🏠 Panti Asuhan "Harapan Bunda" di seberang jalan

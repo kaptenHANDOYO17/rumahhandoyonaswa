@@ -328,7 +328,7 @@ export class SimModel {
       this.arms[i].el.rotation.x = C.el[i];
     }
     if (this.skirt) this.skirt.rotation.x = Math.max(-0.9, Math.min(0, (C.th[0] + C.th[1]) * 0.35));
-    const talking = anim === 'talk' || anim === 'laugh' || anim === 'phone';
+    const talking = anim === 'talk' || anim === 'laugh' || anim === 'phone' || this.bersuara;
     this.mouth.scale.y = talking ? 1 + Math.abs(Math.sin(this.t * 14)) * 3 : 1;
     this.blob.visible = C.bodyX > -0.5;
   }

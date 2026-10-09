@@ -9,6 +9,7 @@ import {
 import { FAMILY_XP, HUMANS } from './state.js';
 import { PET_EMOJI, PET_LABEL, isBaby } from './pets.js';
 import { SoundFX } from './sound.js';
+import { Ucapan } from './ucapan.js';
 import { Phone } from './phone.js';
 import { aiAsk, aiReady } from './ai.js';
 import { localReply } from './chatbrain.js';
@@ -24,6 +25,7 @@ import { openCrypto } from './crypto.js';
 import { daftarKisah, ringkasKisah, AMBANG } from './kisah.js';
 import { CATATAN } from './bawahtanah.js';
 import { ANAK, PENGASUH } from './panti.js';
+import { STAF_PREMIUM, ASET, KENDARAAN, ELEGANSI, nilaiElegansi, gelarDari, biayaStafBulanan, hasilBulanan, nilaiAset } from './kekayaan.js';
 import { openEmergency } from './services.js';
 import { ACCESS_INFO } from './books2.js';
 import { BOOKS, SHELVES, HELP_FOOTER, bookById } from './books.js';
@@ -65,7 +67,7 @@ class Sfx {
 
 export class UI {
   constructor(root) {
-    this.root = root; this.sound = new SoundFX(); window.addEventListener('pointerdown', () => this.sound.ensure(), { passive: true }); this.keepPlacing = false; this.t = 0; this.tab = 'needs';
+    this.root = root; this.sound = new SoundFX(); this.ucapan = new Ucapan(this.sound); window.addEventListener('pointerdown', () => this.sound.ensure(), { passive: true }); this.keepPlacing = false; this.t = 0; this.tab = 'needs';
     this.panelOpen = window.innerWidth > 760; this.buyCat = 'ruang';
     this.chatLog = [];
   }
@@ -182,7 +184,11 @@ export class UI {
       if (!bub) { const low = NEEDS.filter((d) => s.needs[d.id] < 22).sort((a, b) => s.needs[a.id] - s.needs[b.id])[0]; if (low) bub = low.icon; }
       const bEl = el.children[1]; if (bEl.dataset.v !== (bub || '')) { bEl.dataset.v = bub || ''; bEl.textContent = bub || ''; bEl.style.display = bub ? '' : 'none'; }
       const sEl = el.children[0]; const say = s.say && s.say.until > Date.now() ? s.say.text : '';
-      if (sEl.dataset.v !== say) { sEl.dataset.v = say; sEl.textContent = say; sEl.style.display = say ? '' : 'none'; }
+      if (sEl.dataset.v !== say) {
+        sEl.dataset.v = say; sEl.textContent = say; sEl.style.display = say ? '' : 'none';
+        // warga benar-benar mengucapkannya — makin jauh dari kamera, makin pelan
+        if (say) this.ucapan.ucap(n, say, { jarak: cam.position.distanceTo(R.position) });
+      }
       el.classList.toggle('me', n === g.active);
     }
   }
@@ -327,6 +333,7 @@ export class UI {
     if (typeof k === 'string' && k.startsWith('tamu:')) return this.sound.guest(k.slice(5)); this.sound.play(k); }
   saved() { const t = Date.now(); if (t - (this._svT || 0) > 50000) { this._svT = t; this.toast(`Permainan tersimpan 💾${this.g.cloudState ? ' · ☁️ ' + this.g.cloudState : ''}`, 'info'); } }
   chat(name, text) {
+    try { this.ucapan.ucap(name, text, { jarak: 0 }); } catch (e) { /* abaikan */ }
     this.chatLog.push({ name, text }); if (this.chatLog.length > 40) this.chatLog.shift();
     $('#uChatLog').innerHTML = this.chatLog.map((c) => `<div><b class="${c.name}">${esc(c.name)}</b> ${esc(c.text)}</div>`).join('');
     $('#uChatLog').scrollTop = 1e6;
@@ -557,6 +564,88 @@ export class UI {
   }
   closeModal() { $('.modal', this.root).classList.add('hidden'); this.modalOpen = false; document.body.classList.remove('ada-modal'); }
   modalTerbuka() { const m = $('.modal', this.root); return !!(m && !m.classList.contains('hidden')); }
+  // ---------- kekayaan: staf, aset, kendaraan, elegansi ----------
+  openKaya(tab) {
+    const g = this.g, hh = g.hh, W = hh.world; const K = W.kaya || { staf: {}, aset: {}, kendaraan: {}, elegansi: {} };
+    this.kayaTab = tab || this.kayaTab || 'staf';
+    const siapa = HUMANS.includes(g.active) ? g.active : 'Handoyo';
+    const saldo = hh.sims[siapa].wallet;
+    const e = nilaiElegansi(W);
+    const mampu = (h) => (saldo >= h ? '' : 'disabled');
+    const T = this.kayaTab;
+    let isi = '';
+
+    if (T === 'staf') {
+      isi = `<p class="muted small">Staf digaji tiap bulan (3 hari game). Kalau gaji tak terbayar, mereka pamit baik-baik — bukan hilang begitu saja.</p>
+      <div class="kyList">${Object.entries(STAF_PREMIUM).map(([k, S]) => {
+        const punya = !!K.staf[k];
+        return `<div class="kyK ${punya ? 'punya' : ''}"><div class="kyIk">${S.ikon}</div>
+          <div class="kyIsi"><b>${esc(S.nama)}</b><em>${esc(S.peran)}${S.untuk ? ` · untuk ${S.untuk}` : ''}</em>
+            <p>${esc(S.guna)}</p></div>
+          <div class="kyAksi"><span>${fmtShort(S.gaji)}<small>/bulan</small></span>
+            <button class="btn sm ${punya ? 'ghost' : ''}" data-kaya="staf" data-k="${k}" ${punya ? '' : mampu(S.gaji)}>${punya ? 'Berhentikan' : 'Rekrut'}</button></div></div>`;
+      }).join('')}</div>`;
+    }
+    if (T === 'aset') {
+      isi = `<p class="muted small">Uang keluar besar, lalu kembali berkala. Angka "balik modal" dihitung dari hasil rata-rata — aset berisiko bisa lebih cepat atau lebih lambat.</p>
+      <div class="kyList">${Object.entries(ASET).map(([k, A]) => {
+        const punya = K.aset[k];
+        const perBulan = (A.hasil * 3) / A.siklus;
+        const balik = Math.ceil(A.harga / perBulan);
+        const risiko = ['aman', 'ringan', 'sedang', 'tinggi'][Math.min(3, Math.floor(A.risiko * 4))];
+        return `<div class="kyK ${punya ? 'punya' : ''}"><div class="kyIk">${A.ikon}</div>
+          <div class="kyIsi"><b>${esc(A.nama)}</b><em>cair tiap ${A.siklus} hari · risiko ${risiko}</em>
+            <p>${esc(A.ket)}</p>
+            <span class="kyTag">≈ ${fmtShort(perBulan)}/bulan</span><span class="kyTag">balik modal ±${balik} bulan</span>
+            ${punya ? `<span class="kyTag ok">sudah menghasilkan ${fmtShort(punya.total || 0)}</span>` : ''}</div>
+          <div class="kyAksi"><span>${fmtShort(A.harga)}</span>
+            <button class="btn sm ${punya ? 'ghost' : ''}" data-kaya="${punya ? 'jualAset' : 'aset'}" data-k="${k}" ${punya ? '' : mampu(A.harga)}>${punya ? 'Jual' : 'Beli'}</button></div></div>`;
+      }).join('')}</div>`;
+    }
+    if (T === 'kendaraan') {
+      isi = `<p class="muted small">Kendaraan menaikkan elegansi rumah dan membuat perjalanan kerja tidak melelahkan. Yang terbaru otomatis terparkir di carport.</p>
+      <div class="kyList">${Object.entries(KENDARAAN).map(([k, V]) => {
+        const punya = !!K.kendaraan[k];
+        return `<div class="kyK ${punya ? 'punya' : ''}"><div class="kyIk">${V.ikon}</div>
+          <div class="kyIsi"><b>${esc(V.nama)}</b><em>elegansi +${V.elegansi}</em><p>${esc(V.ket)}</p></div>
+          <div class="kyAksi"><span>${fmtShort(V.harga)}</span>
+            ${punya ? '<em class="kyOk">dimiliki</em>' : `<button class="btn sm" data-kaya="kendaraan" data-k="${k}" ${mampu(V.harga)}>Beli</button>`}</div></div>`;
+      }).join('')}</div>`;
+    }
+    if (T === 'elegansi') {
+      isi = `<p class="muted small">Setiap peningkatan benar-benar mengubah wujud rumah — lantai, cahaya, taman, fasad, dan perabot. Arahnya tenang dan elegan, bukan mencolok.</p>
+      <div class="kyList">${Object.entries(ELEGANSI).map(([k, E]) => {
+        const kini = K.elegansi[k] || 0;
+        const maks = E.tingkat.length;
+        const nx = kini < maks ? E.tingkat[kini] : null;
+        return `<div class="kyK ${kini ? 'punya' : ''}"><div class="kyIk">${E.ikon}</div>
+          <div class="kyIsi"><b>${esc(E.nama)}</b><em>${kini ? esc(E.tingkat[kini - 1].n) : 'standar'} · tingkat ${kini}/${maks}</em>
+            <span class="kyBar">${E.tingkat.map((_, i) => `<i class="${i < kini ? 'on' : ''}"></i>`).join('')}</span>
+            <p>${nx ? `<b>Berikutnya — ${esc(nx.n)}:</b> ${esc(nx.k)}` : 'Sudah di tingkat tertinggi.'}</p></div>
+          <div class="kyAksi">${nx ? `<span>${fmtShort(nx.h)}</span><button class="btn sm" data-kaya="elegansi" data-k="${k}" ${mampu(nx.h)}>Tingkatkan</button>` : '<em class="kyOk">maksimal</em>'}</div></div>`;
+      }).join('')}</div>`;
+    }
+
+    const m = this.modal(`<h2>💼 Kekayaan &amp; Aset</h2>
+      <div class="kyTop">
+        <div><small>Dompet ${esc(siapa)}</small><b>${fmtShort(saldo)}</b></div>
+        <div><small>Nilai aset</small><b>${fmtShort(nilaiAset(W))}</b></div>
+        <div><small>Penghasilan aset</small><b class="up">+${fmtShort(hasilBulanan(W))}<em>/bln</em></b></div>
+        <div><small>Gaji staf</small><b class="down">−${fmtShort(biayaStafBulanan(W))}<em>/bln</em></b></div>
+        <div><small>Elegansi</small><b>${e} <em>${esc(gelarDari(e))}</em></b></div>
+      </div>
+      <div class="kyTab">${[['staf', '🤵 Staf Pribadi'], ['aset', '📈 Aset & Investasi'], ['kendaraan', '🚗 Kendaraan'], ['elegansi', '✨ Elegansi Rumah']]
+        .map(([k, l]) => `<button class="btn sm ${k === T ? '' : 'ghost'}" data-kytab="${k}">${l}</button>`).join('')}</div>
+      ${isi}
+      <div class="mbtns row"><button class="btn ghost" data-close>Tutup</button></div>`, 'wide');
+    m.onclick = (e2) => {
+      const t = e2.target.closest('[data-kytab]'); if (t) return this.openKaya(t.dataset.kytab);
+      const b = e2.target.closest('[data-kaya]'); if (!b || b.disabled) return;
+      this.g.cmd({ c: 'kaya', op: b.dataset.kaya, k: b.dataset.k, sim: siapa });
+      setTimeout(() => this.openKaya(T), 140);
+    };
+  }
+
   // ---------- kisah warga ----------
   openKisah() {
     const hh = this.g.hh; hh._ANAK = { ANAK };
@@ -611,11 +700,13 @@ export class UI {
         <button class="btn" data-a="rush">🍛 Minigame: Nasi Padang Rush</button>
         <button class="btn" data-a="eggs">🥚 Jurnal Rahasia (easter egg)</button>
         <button class="btn" data-a="crypto">🪙 Bursa Kripto (portofolio keluarga)</button>
+        <button class="btn" data-a="kaya">💼 Kekayaan &amp; Aset (staf, investasi, elegansi)</button>
         <button class="btn" data-a="kisah">📖 Kisah Warga (cerita hidup tetangga)</button>
         <button class="btn" data-a="panti">🏠 Panti Harapan Bunda (10 anak asuh)</button>
         <button class="btn" data-a="photo">📸 Mode Foto</button>
         <button class="btn" data-a="opt">⚙️ Kenyamanan Main (energi, kebutuhan, panjang hari)</button>
         <button class="btn ghost" data-a="vol">🎚️ Volume: ${Math.round(this.sound.vol * 100)}%</button>
+        <button class="btn ghost" data-a="ucap">🗣️ Suara obrolan: ${{ auto: this.ucapan.adaTTS ? 'suara asli' : 'celoteh', asli: 'suara asli', celoteh: 'celoteh', mati: 'mati' }[this.ucapan.mode]}</button>
         <button class="btn ghost" data-a="unstuck">🔧 Lepas macet: ${esc(this.g.active)}</button>
         <p class="muted small">Akun: ${Acct.session && Acct.session.user ? esc(Acct.session.user) : 'tanpa akun'} · Dunia <b>${esc(DUNIA)}</b> sebagai <b>${esc(this.g.peran || this.g.active)}</b> ${this.g.isHost ? '(kamu server)' : '(pasanganmu server)'}${this.g.simpanStatus ? ' · ☁️ ' + esc(this.g.simpanStatus) : ''}</p>
         <button class="btn" data-a="gfx">${g.quality.low ? '🖥️ Grafis: ringan' : '🖥️ Grafis: tinggi'}</button>
@@ -631,6 +722,8 @@ export class UI {
       if (a.dataset.a === 'rush') { this.closeModal(); openRush(this); }
       if (a.dataset.a === 'eggs') { this.closeModal(); openEggs(this); }
       if (a.dataset.a === 'crypto') { this.closeModal(); openCrypto(this); }
+      if (a.dataset.a === 'ucap') { const u = ['auto', 'asli', 'celoteh', 'mati']; this.ucapan.setel(u[(u.indexOf(this.ucapan.mode) + 1) % u.length]); this.openMenu(); }
+      if (a.dataset.a === 'kaya') { this.closeModal(); this.openKaya(); }
       if (a.dataset.a === 'kisah') { this.closeModal(); this.openKisah(); }
       if (a.dataset.a === 'panti') { this.closeModal(); this.openPanti(); }
       if (a.dataset.a === 'photo') { this.closeModal(); openPhoto(this); }

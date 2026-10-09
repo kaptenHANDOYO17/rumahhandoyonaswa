@@ -21,6 +21,7 @@ import { buildDunia, updateDunia, gabungStatis, setDetailDunia, gabungGrup, mati
 import { buildPanti, updatePanti, PANTI, ANAK } from './panti.js';
 import { buildSatwa, updateSatwa } from './satwa.js';
 import { buildBawah, updateBawah, BAWAH, CATATAN } from './bawahtanah.js';
+import { buildElegan, terapkanElegan, updateElegan } from './elegan.js';
 import { aiAsk, aiReady, AI } from './ai.js';
 import { updatePOV, masukPOV, keluarPOV, aksiKamera } from './kamera.js';
 import { NPCS } from './people.js';
@@ -66,6 +67,7 @@ export class Game {
       privasi: (bed) => { spawnBurst(this.polishFX, this, 'mawar', bed ? { x: bed.x, z: bed.z } : null); this.romanceGlow = 40; },
       ghost: () => { this.ghostT = 6; shake(this.polishFX, 0.25); },
       loanOffer: (o) => { this.ui.loanModal(o); this.send({ t: 'loan', o }); },
+      eleganBerubah: () => { try { terapkanElegan(this.eleganFX, this); } catch (e) { this.laporGalat('elegansi', e); } },
       masukBawah: (sim) => this.masukBawah(sim),
       keluarBawah: (sim) => this.keluarBawah(sim),
       bukaCatatan: () => this.ui.openCatatan(),
@@ -107,7 +109,7 @@ export class Game {
     this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
     this.W = buildWorld(this.scene, q);
     buildFloor2(this.scene, this.W); this.viewLvl = 0; this.W.floor2.visible = false;
-    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene); this.pantiFX = buildPanti(this.scene); this.bawahFX = buildBawah(this.scene);
+    this.town = buildTown(this.scene); this.seasonFX = buildSeasonFX(this); this.padangFX = buildPadang(this.scene); this.polishFX = buildPolish(this); this.sawahFX = buildSawah(this.scene); this.pantiFX = buildPanti(this.scene); this.bawahFX = buildBawah(this.scene); this.eleganFX = buildElegan(this.scene, this.W);
     // tandai semua yang harus tetap bisa bergerak / disembunyikan sendiri-sendiri
     const tandai = (v, dalam = 0) => {                       // tandai hanya bagian yang benar-benar bergerak
       if (!v || dalam > 3) return;
@@ -116,10 +118,11 @@ export class Game {
       if (typeof v === 'object') for (const k of Object.keys(v)) { if (k === 'root') continue; tandai(v[k], dalam + 1); }
     };
     for (const d of [this.W.roof, this.W.floor2, this.W.plafon, this.W.stairs, ...(this.W.walls || []).map((w) => w.g), this.W.rain, this.W.clouds]) if (d && d.traverse) d.traverse((o) => { o.userData.dinamis = true; });
-    for (const fx of [this.townFX, this.padangFX, this.sawahFX, this.seasonFX, this.svcFX, this.polishFX, this.pantiFX, this.bawahFX]) tandai(fx);
+    for (const fx of [this.townFX, this.padangFX, this.sawahFX, this.seasonFX, this.svcFX, this.polishFX, this.pantiFX, this.bawahFX, this.eleganFX]) tandai(fx);
     // Ruang bawah tanah harus tetap utuh sebagai satu grup yang bisa
     // disembunyikan/ditampilkan — jangan ikut digabung ke mesh statis.
     this.bawahFX.root.traverse((o) => { o.userData.dinamis = true; });
+    this.eleganFX.root.traverse((o) => { o.userData.dinamis = true; });   // bisa dinyalakan/dimatikan sesuai upgrade
     for (const L of this.W.interiorLights || []) if (L.lamp) L.lamp.userData.dinamis = true;
     this.statisDigabung = gabungStatis(this.scene);        // satukan hiasan statis → draw call turun drastis
     this.duniaFX = buildDunia(this.scene); this.satwaFX = buildSatwa(this.scene);
@@ -138,6 +141,7 @@ export class Game {
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
     this.lastGrass = -1; this.visT = 0; this.netT = 0; this.saveT = 0;
+    try { terapkanElegan(this.eleganFX, this); } catch (e) { /* abaikan */ }
     this.renderer.setAnimationLoop(() => this.frame());
   }
   actors() { return [...Object.values(this.hh.sims), ...Object.values(this.hh.others || {})]; }
@@ -281,7 +285,7 @@ export class Game {
     this.visT += dt;
     if (this.visT > 0.08) {
       const night = this.isNight(); const t = performance.now() / 1000;
-      if (!W.diBawah) { updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); updateDunia(this.duniaFX, this, dt, t, night); updatePanti(this.pantiFX, this, dt, t, night); updateSatwa(this.satwaFX, this, dt, t, night); }
+      if (!W.diBawah) { updateTown(this.town, this.hh, night, t); updateSeasonFX(this.seasonFX, this, dt, t); updateServiceFX(this.svcFX, this, dt, t); updateRomanceFX(this); updatePadang(this.padangFX, this, night, t, dt); updatePolish(this.polishFX, this, dt, t, night); updateSawah(this.sawahFX, this, dt, t, night); updateDunia(this.duniaFX, this, dt, t, night); updatePanti(this.pantiFX, this, dt, t, night); updateSatwa(this.satwaFX, this, dt, t, night); updateElegan(this.eleganFX, this, dt, t, night); }
       updateBawah(this.bawahFX, this, dt, t); this.updateArt(night);
       for (const o of W.objects) { const g = this.objMeshes.get(o.id); if (g) try { if (isPetType(o.type)) updatePetVisual(g, o, t); else updateObjectVisual(g, o, W, night, t); } catch (e) { /* abaikan */ } }
       this.visT = 0;
@@ -400,6 +404,7 @@ export class Game {
         if (m.root.scale.x !== (s.outfit.height || 1)) m.root.scale.setScalar(s.outfit.height || 1);
       }
       m.moving = s.moving;
+      m.bersuara = this.ui.ucapan ? this.ui.ucapan.sedangBicara(n) : false;   // mulut bergerak selama ia bicara
       const R = m.root; const dx = s.x - R.position.x, dz = s.z - R.position.z; const d = Math.hypot(dx, dz);
       if (d > 4) { R.position.x = s.x; R.position.z = s.z; }
       else { const k = Math.min(1, dt * (this.isHost ? (s.moving ? 30 : 9) : 10)); R.position.x += dx * k; R.position.z += dz * k; }

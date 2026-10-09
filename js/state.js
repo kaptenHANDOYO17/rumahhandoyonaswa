@@ -34,6 +34,7 @@ import { TOWN_OBJECTS, TOWN_WALLS, VENDOR_SPOTS } from './town.js';
 import { PANTI, PANTI_OBJECTS, ANAK } from './panti.js';
 import { BAWAH, BAWAH_OBJECTS } from './bawahtanah.js';
 import { installKisah } from './kisah.js';
+import { installKekayaan, pengaruhStaf, nilaiElegansi } from './kekayaan.js';
 import { satwaJam } from './satwa.js';
 const STUDIO_OBJECTS = [['bigEasel', 4.3, -3.7, 0], ['paintTable', 3.75, -5.55, 0], ['canvasRack', 7.6, -4.6, 3], ['studioLamp', 3.5, -2.2, 0]];
 export const HUMANS = ['Handoyo', 'Naswa'];
@@ -396,6 +397,7 @@ export class Household {
       case 'opt': { const W = this.world; W.opt = { ...W.opt, ...(c.opt || {}) }; if (!W.opt.energy) for (const h of this.humans()) h.needs.energy = 100;
         this.toast(`⚙️ Pengaturan diperbarui — energi ${W.opt.energy ? 'aktif' : 'dimatikan'}, kebutuhan ${Math.round(W.opt.decayMul * 100)}%, hari ${W.opt.dayMul}× lebih panjang`, 'info'); return; }
       case 'crypto': return this.cryptoCmd && this.cryptoCmd(c);
+      case 'kaya': return this.kayaCmd && this.kayaCmd({ ...c, sim: c.sim || (sim && sim.name) });
       case 'egg': return this.easter && this.easter(c.t, { ...(c.d || {}), sim });
       case 'rush': return rushReward(this, { ...c, sim: c.sim });
       case 'season': { const L = ['salju', 'hujan', 'panas', 'gugur'].includes(c.lock) ? c.lock : null; this.world.seasonLock = L; this.world.weather = 'cerah'; this.world.weatherLeft = 0; this.toast(L ? `🔒 Musim dikunci: ${L}` : '🔄 Musim kembali mengikuti kalender', 'info'); return; }
@@ -769,16 +771,20 @@ export class Household {
   }
   continuous(gm) {
     const W = this.world, H = W.house, h = gm / 60;
-    H.grass = Math.min(100, H.grass + 1.5 * h);
+    const staf = pengaruhStaf(this);
+    H.grass = staf.taman ? Math.min(42, H.grass + 0.2 * h) : Math.min(100, H.grass + 1.5 * h);   // tukang taman: rumput selalu rapi
+    if (staf.koki) { if (H.stock < 8) H.stock = Math.min(8, H.stock + 0.5 * h); if (H.servings <= 0 && Math.random() < 0.02 * h) { H.servings = 2; H.servingsBy = 'Chef Renata'; } }
     const rain = W.weather === 'hujan';
     for (const o of W.objects) {
       const s = o.s;
+      if ((o.type === 'plant' || o.type === 'plantPot' || o.type === 'veggie') && staf.taman && (o.s.water ?? 100) < 75) o.s.water = Math.min(100, (o.s.water || 0) + 6 * h);
       if (o.type === 'plant' || o.type === 'plantPot' || o.type === 'veggie') {
         const outdoor = !inHouse(o.x, o.z);
         s.water = clamp((s.water ?? 100) + (rain && outdoor ? 40 : -2.6) * h, 0, 100);
         if (o.type === 'veggie' && s.water > 25) s.growth = Math.min(100, (s.growth || 0) + (100 / 40) * h);
       }
       if (o.type === 'clothesline' && s.clothes === 'wet') { if (rain) s.dryAt += gm; else if (W.time >= s.dryAt) { s.clothes = 'dry'; this.toast('Jemuran sudah kering — bisa diangkat 👚', 'info'); } }
+      if (o.type === 'car' && staf.sopir) o.s.dirt = 0;
       if (o.type === 'car' && rain && !s.away) s.dirt = Math.min(100, (s.dirt || 0) + 4 * h);
     }
     if (H.orderAt && W.time >= H.orderAt) { H.orderAt = null; this.op({ o: 'house', k: 'servings', d: 2 }); H.servingsBy = 'kurir'; this.toast('Paket makanan tiba! 2 porsi siap di meja makan 🍱', 'good', true); this.sfx('bell'); }
@@ -826,6 +832,7 @@ export class Household {
       W.day = day;
       for (const s of this.humans()) this.rollGoals(s, day);
       this.toast(`☀️ ${DAY_NAMES[day % 7]}, hari ke-${day + 1} di Griya Asri`, 'info', true);
+      try { this.kayaHari && this.kayaHari(day); } catch (e) { /* abaikan */ }
       this.hooks.newDay && this.hooks.newDay(day);
       W.weather = 'cerah'; W.rainLeft = 0;
     }
@@ -928,9 +935,9 @@ export class Household {
       if (V.stage === 2 && !sim.queue.length) sim.visit = null;
     }
   }
-  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); installCrypto(this); installKisah(this);
+  extInit() { const W = this.world; W.opt = { energy: false, decayMul: 0.5, dayMul: 2, ...(W.opt || {}) }; installSeasons(this); installServices(this); installRomance(this, FAMILY_XP); installEaster(this); installCrypto(this); installKisah(this); installKekayaan(this);
     // jembatan ke lapisan tampilan (ruang bawah tanah & panti asuhan)
-    for (const k of ['masukBawah', 'keluarBawah', 'bukaCatatan', 'teleponHangat', 'pantiDonasi', 'pantiKenyang', 'pantiAyun']) {
+    for (const k of ['masukBawah', 'keluarBawah', 'bukaCatatan', 'teleponHangat', 'pantiDonasi', 'pantiKenyang', 'pantiAyun', 'eleganBerubah']) {
       if (!this[k]) this[k] = (...a) => this.hooks[k] && this.hooks[k](...a);
     } }
   births() {

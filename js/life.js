@@ -74,7 +74,9 @@ export const ART_TITLES = ['Pemula', 'Pelukis Muda', 'Pelukis Profesional', 'Sen
 export const artLevel = (W) => { const s = (W.art && W.art.sold) || 0; return [0, 2, 5, 10, 18, 30].filter((x) => s >= x).length - 1; };
 export function fairPrice(hh, p) {
   const A = hh.world.art || {}; const fame = (A.fame || 0);
-  const base = 900000 * (1 + fame / 8) * Math.pow(0.35 + p.q / 55, 2);
+  const K = hh.world.kaya || {};
+  const manajer = !!(K.staf && K.staf.manajerN);   // manajer seni: negosiasi & kurasi menaikkan harga wajar
+  const base = 900000 * (1 + fame / 8) * Math.pow(0.35 + p.q / 55, 2) * (manajer ? 1.25 : 1);
   return Math.round(base / 50000) * 50000 + 250000;
 }
 export function paintingQuality(hh, st) {
@@ -193,8 +195,9 @@ export function installLife(hh) {
     const W = W0(); const A = W.dev.active; if (sim.name !== 'Handoyo') return;
     sim.xp('logika', gm * 0.5);
     if (!A) return;
-    A.prog += gm / 60 * (0.8 + sim.skillLvl('logika') * 0.09 + (W.dev.boost || 0));
-    if (Math.random() < gm * 0.004) { A.bugs = (A.bugs || 0) + 1; A.prog = Math.max(0, A.prog - 0.4); hh.toast(`🐛 Handoyo nemu bug di "${A.title}"… debugging dulu`, 'info'); }
+    const asisten = !!(W.kaya && W.kaya.staf && W.kaya.staf.asistenH);   // asisten pribadi: riset & dokumentasi dikerjakan dia
+    A.prog += gm / 60 * (0.8 + sim.skillLvl('logika') * 0.09 + (W.dev.boost || 0)) * (asisten ? 1.25 : 1);
+    if (Math.random() < gm * 0.004 * (asisten ? 0.6 : 1)) { A.bugs = (A.bugs || 0) + 1; A.prog = Math.max(0, A.prog - 0.4); hh.toast(`🐛 Handoyo nemu bug di "${A.title}"… debugging dulu`, 'info'); }
     if (A.prog >= A.hours) {
       W.dev.active = null; W.dev.done++;
       if (A.pay > 0) hh.op({ o: 'money', d: A.pay, why: `Proyek: ${A.title}`, sim: 'Handoyo' });

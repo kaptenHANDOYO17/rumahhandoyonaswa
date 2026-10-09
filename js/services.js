@@ -63,8 +63,14 @@ function servicesMinute(hh, m) {
       if (o) { W.fire = { objId: o.id, x: o.x, z: o.z, level: 0.25, t: W.time }; hh.toast(`🔥 KEBAKARAN di ${TYPES[o.type].name}! ${W.lastSeason === 'panas' ? 'Korsleting karena panas.' : 'Korsleting listrik.'} Pakai APAR atau panggil Damkar lewat 🚨 Darurat!`, 'bad', true); hh.sfx('bad'); }
     }
     if (hr === 2 && !W.theft && Math.random() < 0.05) {
-      const v = hh.humans().sort((a, b) => b.wallet - a.wallet)[0]; const amt = Math.round((3 + Math.random() * 12)) * 1000000;
-      hh.op({ o: 'money', d: -amt, why: 'Kemalingan', sim: v.name }); W.theft = { amount: amt, from: v.name, t: W.time, done: false };
+      const satpam = !!(W.kaya && W.kaya.staf && W.kaya.staf.satpam);
+      if (satpam) {
+        // Pak Slamet berjaga di gerbang — percobaan masuk digagalkan sebelum kejadian
+        if (Math.random() < 0.5) { hh.toast('🛡️ Pak Slamet (satpam) menggagalkan orang asing yang coba masuk halaman tadi malam. Rumah aman.', 'good', true); for (const h of hh.humans()) h.mood('aman'); }
+      } else {
+        const v = hh.humans().sort((a, b) => b.wallet - a.wallet)[0]; const amt = Math.round((3 + Math.random() * 12)) * 1000000;
+        hh.op({ o: 'money', d: -amt, why: 'Kemalingan', sim: v.name }); W.theft = { amount: amt, from: v.name, t: W.time, done: false };
+      }
     }
     if (hr === 6 && W.theft && !W.theft.told) { W.theft.told = true; hh.toast(`🦹 KEMALINGAN! Uang ${W.theft.from} ${fmtRp(W.theft.amount)} raib tadi malam. Lapor polisi (🚨 Darurat) — makin cepat, makin besar peluang tertangkap!`, 'bad', true); for (const h of hh.humans()) h.mood('kemalingan'); }
     if (W.theft && W.time - W.theft.t > 1440 * 2) W.theft = null;
