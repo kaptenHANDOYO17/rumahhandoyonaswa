@@ -66,17 +66,20 @@ export function buildElegan(scene, W) {
 
   // ---------- TAMAN tingkat 1: petak tertata + jalur batu ----------
   const t1 = new THREE.Group(); R.add(t1); F.grup.taman1 = t1;
-  for (const sx of [-1, 1]) {
-    for (let i = 0; i < 3; i++) {
-      const b = box(2.0, 0.22, 1.2, batu, sx * 5.2, 0.11, 7.4 + i * 1.5, t1);
-      for (let j = 0; j < 4; j++) { const d = box(0.3, 0.34, 0.3, daunM, sx * 5.2 - 0.6 + j * 0.42, 0.34, 7.4 + i * 1.5, t1); d.castShadow = false; }
-    }
+  //  Tata letak halaman depan (semua dihitung supaya tidak pernah bertabrakan):
+  //    gerbang x = -4, z = 11   ·   pintu utama x = -4, z = 6
+  //    teras bertiang  x -6,8…-1,2   z 6,05…8,65
+  //    kolam / air mancur  pusat (3,5 · 8,6)  jari-jari 2,1
+  for (const [x, z] of [[-10.4, 7.4], [-10.4, 9.8], [8.4, 7.4], [8.4, 9.8]]) {
+    box(2.0, 0.22, 1.2, batu, x, 0.11, z, t1);
+    for (let j = 0; j < 4; j++) { const d = box(0.3, 0.34, 0.3, daunM, x - 0.6 + j * 0.42, 0.34, z, t1); d.castShadow = false; }
   }
-  for (let i = 0; i < 9; i++) box(0.9, 0.06, 0.6, batu, -2.6 + (i % 2) * 0.25, 0.04, 7.2 + i * 0.52, t1).castShadow = false;
+  // jalur batu lurus dari gerbang (x = -4, z = 11) ke teras depan (z ≈ 8.8)
+  for (let i = 0; i < 5; i++) box(1.1, 0.06, 0.62, batu, -4, 0.04, 8.95 + i * 0.5, t1).castShadow = false;
 
   // ---------- TAMAN tingkat 2: kolam koi + topiari simetris ----------
   const t2 = new THREE.Group(); R.add(t2); F.grup.taman2 = t2;
-  const kolam = new THREE.Group(); kolam.position.set(0, 0, 9.2); t2.add(kolam);
+  const kolam = new THREE.Group(); kolam.position.set(3.5, 0, 8.6); t2.add(kolam);
   const bibir = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.17, 8, 28), batu);
   bibir.rotation.x = PI / 2; bibir.position.y = 0.17; kolam.add(bibir);
   const muka = new THREE.Mesh(new THREE.CircleGeometry(1.46, 28), air);
@@ -85,15 +88,16 @@ export function buildElegan(scene, W) {
     const koi = box(0.17, 0.05, 0.3, M(i % 2 ? '#e8743b' : '#f5f1e8', 0.5), 0, 0.21, 0, kolam);
     koi.castShadow = false; (F.koi = F.koi || []).push({ m: koi, a: i * 1.26, r: 0.5 + (i % 3) * 0.3, sp: 0.4 + i * 0.09 });
   }
-  for (const sx of [-1, 1]) for (const sz of [0, 1]) {
-    const tp = new THREE.Group(); tp.position.set(sx * 3.4, 0, 7.6 + sz * 3.2); t2.add(tp);
+  //  dua topiari mengapit jalur ke pintu, dua lagi di sisi kanan taman
+  for (const [x, z] of [[-5.8, 9.9], [-2.2, 9.9], [7.0, 7.1], [7.0, 10.1]]) {
+    const tp = new THREE.Group(); tp.position.set(x, 0, z); t2.add(tp);
     cyl(0.3, 0.34, 0.36, batu, 0, 0.18, 0, tp, 12);
     cyl(0.07, 0.07, 0.5, M('#6d4c41', 0.9), 0, 0.6, 0, tp, 8);
     for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.34 - i * 0.07, 12, 9), daunM); b.position.y = 0.95 + i * 0.5; b.castShadow = true; tp.add(b); }
   }
 
   // ---------- TAMAN tingkat 3: air mancur marmer ----------
-  const t3 = new THREE.Group(); t3.position.set(0, 0, 9.2); R.add(t3); F.grup.taman3 = t3;
+  const t3 = new THREE.Group(); t3.position.set(3.5, 0, 8.6); R.add(t3); F.grup.taman3 = t3;
   const kolam3 = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.26, 10, 32), marmer);
   kolam3.rotation.x = PI / 2; kolam3.position.y = 0.26; t3.add(kolam3);
   const muka3 = new THREE.Mesh(new THREE.CircleGeometry(2.05, 32), air); muka3.rotation.x = -PI / 2; muka3.position.y = 0.3; t3.add(muka3); F.airMancur = muka3;
@@ -111,22 +115,28 @@ export function buildElegan(scene, W) {
 
   // ---------- FASAD tingkat 1: pilar batu di pagar ----------
   const f1 = new THREE.Group(); R.add(f1); F.grup.fasad1 = f1;
-  for (const x of [-9.4, -4.8, 4.8, 9.4]) { box(0.52, 1.7, 0.52, batu, x, 0.85, 10.9, f1); box(0.64, 0.14, 0.64, kuningan, x, 1.77, 10.9, f1); }
+  for (const x of [-11.2, -6.7, -1.3, 4.8, 9.4]) { box(0.52, 1.7, 0.52, batu, x, 0.85, 10.9, f1); box(0.64, 0.14, 0.64, kuningan, x, 1.77, 10.9, f1); }
 
   // ---------- FASAD tingkat 2: teras bertiang (portico) ----------
-  const f2 = new THREE.Group(); f2.position.set(-2.0, 0, 6.3); R.add(f2); F.grup.fasad2 = f2;
+  //  Dipasang DI DEPAN pintu utama (x = -4, z = 6) dan sepenuhnya di LUAR
+  //  dinding rumah, supaya tiangnya tidak pernah berdiri di dalam ruang tamu.
+  //  Lantai teras: z 6.05 → 8.65. Tiang berdiri di tepi luar (z ≈ 8.3),
+  //  jadi ada 2,2 m teras beratap antara pintu dan tiang.
+  const f2 = new THREE.Group(); f2.position.set(-4.0, 0, 7.35); R.add(f2); F.grup.fasad2 = f2;
   box(5.6, 0.2, 2.6, batu, 0, 0.1, 0, f2);
+  box(5.9, 0.12, 0.42, batu, 0, 0.06, 1.46, f2);          // anak tangga turun ke halaman
   for (const x of [-2.2, -0.75, 0.75, 2.2]) {
-    cyl(0.19, 0.23, 3.1, marmer, x, 1.6, -0.95, f2, 16);
-    cyl(0.3, 0.3, 0.16, marmer, x, 0.26, -0.95, f2, 16);
-    cyl(0.28, 0.24, 0.18, marmer, x, 3.22, -0.95, f2, 16);
+    cyl(0.19, 0.23, 3.1, marmer, x, 1.6, 0.95, f2, 16);
+    cyl(0.3, 0.3, 0.16, marmer, x, 0.26, 0.95, f2, 16);
+    cyl(0.28, 0.24, 0.18, marmer, x, 3.22, 0.95, f2, 16);
   }
-  box(5.8, 0.3, 0.5, marmer, 0, 3.46, -0.95, f2);
+  box(5.8, 0.3, 0.5, marmer, 0, 3.46, 0.95, f2);          // balok di atas tiang
+  box(5.8, 0.16, 2.5, marmer, 0, 3.3, -0.3, f2);          // atap datar teras, menempel ke dinding
   const pediment = new THREE.BufferGeometry();
   pediment.setAttribute('position', new THREE.Float32BufferAttribute([-2.9, 0, 0, 2.9, 0, 0, 0, 0.95, 0], 3));
   pediment.computeVertexNormals();
   const pm = new THREE.Mesh(pediment, new THREE.MeshStandardMaterial({ color: '#efede7', roughness: 0.4, side: THREE.DoubleSide, flatShading: true }));
-  pm.position.set(0, 3.6, -0.95); f2.add(pm);
+  pm.position.set(0, 3.6, 0.95); f2.add(pm);
 
   // ---------- FASAD tingkat 3: lis kuningan ----------
   const f3 = new THREE.Group(); R.add(f3); F.grup.fasad3 = f3;
